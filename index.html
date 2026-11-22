@@ -1,0 +1,4476 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>生日快乐 · 攀岩之约</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* 全局圆润卡通字体：顶部提示条、点击引导、Toast、所有面板文字与按钮统一走这套字体，
+     与墙上攀岩祝福语同一字体栈，整体更软萌、贴合插画画风。 */
+  :root{--round-font:'Comic Sans MS','Yuanti SC','幼圆','Microsoft YaHei','PingFang SC',system-ui,sans-serif}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0d0a16;
+    font-family:var(--round-font);
+    color:#fff;user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none}
+  /* SVG 里未单独指定字体的提示文字（音名、分数、音符标签）也用圆体；
+     已显式设置 font-family 的祝福语/音符符号保持原样。 */
+  #scene text:not([font-family]){font-family:var(--round-font)}
+  #stage{position:relative;width:100%;height:100dvh;overflow:hidden;
+    background:radial-gradient(120% 80% at 50% 6%,#1b1430 0%,#0d0a16 62%);
+    transition:background .5s ease}
+  /* 开场：纯黑底，只留一盏灯、一只猫、女孩的手 */
+  #stage.intro{background:#05040a}
+  #scene{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1}
+  #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+  /* 场景转场幕：登顶→阁楼时柔和地盖住硬切，避免夜空瞬间跳成室内。
+     由 JS 加 .on 触发一次淡入→淡出，纯展示不接收点击。 */
+  #curtain{position:absolute;inset:0;pointer-events:none;z-index:4;opacity:0;
+    transition:opacity .72s ease;
+    background:radial-gradient(120% 90% at 50% 45%,#3a2b24 0%,#171021 68%,#08060f 100%)}
+
+  #hud{position:absolute;inset:0;pointer-events:none;z-index:5}
+  /* HUD 里只有声音按钮需要接收点击；提示条/计时器/图例都是纯展示，
+     必须 pointer-events:none 让点击穿透到画布，否则它们会挡住
+     屏幕上方的高处岩点（玩家点不到、看起来像"点了没反应"）。 */
+  #hud{pointer-events:none}
+  #hud .sndBtn{pointer-events:auto}
+  .topbar{position:absolute;top:0;left:0;right:0;
+    padding:calc(14px + env(safe-area-inset-top,0px)) 14px 0;display:flex;
+    flex-direction:column;gap:9px;align-items:center}
+  .tip{font-size:clamp(13px,3.5vw,16px);line-height:1.5;letter-spacing:.4px;text-align:center;
+    max-width:92vw;background:rgba(14,10,26,.72);border:1px solid rgba(255,255,255,.1);
+    padding:7px 15px;border-radius:999px;backdrop-filter:blur(8px);
+    opacity:0;transform:translateY(-10px);transition:.35s}
+  .tip.on{opacity:1;transform:none}
+
+  .timerRow{display:none;align-items:center;gap:11px}
+  .timerRow.on{display:flex}
+  .tnum{font-size:clamp(23px,6.4vw,29px);font-weight:800;letter-spacing:1px;min-width:76px;text-align:center;
+    font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.7);transition:.2s}
+  .tnum.low{color:#FF5C7A;animation:tpulse .5s infinite}
+  @keyframes tpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+  .bar{width:min(54vw,230px);height:7px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden}
+  .barIn{height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#FFC24B,#FF7A5C);
+    transition:width .1s linear}
+
+  .legend{display:none;flex-wrap:nowrap;gap:4px;justify-content:center;max-width:98vw}
+  .legend.on{display:flex}
+  .lg{display:flex;align-items:center;gap:4px;font-size:10px;color:rgba(255,255,255,.75);
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+    padding:4px 7px;border-radius:99px;white-space:nowrap;flex:0 1 auto;min-width:0}
+  .dot{width:8px;height:8px;border-radius:99px;flex:none}
+  .lg b{flex:none;font-weight:500}
+  .lg .en{opacity:.55;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+  /* 提示放在画面上方，避免压住角色（插曲折人物在 0.70 屏高处） */
+  .tapHint{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);
+    font-size:clamp(15px,4.4vw,19px);letter-spacing:1.2px;text-shadow:0 3px 16px rgba(0,0,0,.85);
+    opacity:0;transition:.3s;text-align:center;line-height:1.8;white-space:nowrap;
+    max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+  .tapHint.on{opacity:1;animation:bob 1.6s ease-in-out infinite}
+  /* 音符幕：五线谱在画面上部，提示改挂到下部，别压住谱面 */
+  .tapHint.low{top:auto;bottom:9%}
+  @keyframes bob{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,calc(-50% - 7px))}}
+
+  /* 岩点筐：默认隐藏（只在装岩点幕出现），攀岩幕收起。
+     只做 opacity 过渡 —— 加 translateY 会把整筐推出画布底部，
+     在窄高屏上 transition 期间必然溢出屏幕。 */
+  #tray{transition:opacity .3s ease;opacity:0;pointer-events:none}
+  #tray.shown{opacity:1;pointer-events:auto}
+  #tray.stowed{opacity:0;pointer-events:none}
+
+  .modal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(8,6,16,.76);backdrop-filter:blur(7px);z-index:20}
+  .modal.on{display:flex;animation:fade .35s ease both}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .card{text-align:center;padding:28px 30px;border-radius:22px;
+    background:rgba(32,25,55,.94);border:1px solid rgba(255,255,255,.13);max-width:84vw}
+  .card h3{margin:0 0 9px;font-size:21px;letter-spacing:1px}
+  .card p{margin:0 0 20px;font-size:13px;color:rgba(255,255,255,.62);line-height:1.8}
+  .btn{pointer-events:auto;cursor:pointer;border:0;font:inherit;font-weight:700;font-size:15px;
+    letter-spacing:1.5px;color:#1c1328;background:linear-gradient(135deg,#FFD36B,#FF9A5C);
+    padding:13px 32px;border-radius:999px;box-shadow:0 8px 22px rgba(255,150,80,.3)}
+
+  #end{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:5px;z-index:30;padding:24px;text-align:center;
+    background:radial-gradient(120% 90% at 50% 22%,rgba(48,24,68,.9),rgba(6,4,12,.985))}
+  #end.on{display:flex;animation:fadeUp .8s ease both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+  #end .kicker,#end .sub,#end .hintc{
+    text-shadow:0 2px 14px rgba(6,4,12,.95),0 0 34px rgba(6,4,12,.8)}
+  #end h1{position:relative;margin:0;font-size:clamp(30px,9vw,46px);letter-spacing:6px;font-weight:800;
+    background:linear-gradient(180deg,#FFF3D0,#FFB35C 55%,#FF7A8F);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 6px 20px rgba(255,150,80,.35))}
+  #end h1::before{content:"生日快乐";position:absolute;inset:0;z-index:-1;
+    color:rgba(6,4,12,.92);filter:blur(16px)}
+  #end .kicker{font-size:11px;letter-spacing:5px;color:#FFC24B;margin-bottom:3px}
+  #end .sub{margin:8px 0 2px;font-size:13px;color:rgba(255,255,255,.66);line-height:1.9}
+  /* 结局里的黑猫：在蛋糕旁挥爪。独立于场景 SVG，避免被镜头裁切 */
+#endCats{margin:6px 0 0;display:flex;align-items:center;justify-content:center;gap:8px;
+    font-size:11.5px;color:rgba(255,255,255,.5);letter-spacing:.5px}
+  #endCats svg{width:62px;height:44px;overflow:visible}
+  #endCats .paw{transform-box:view-box;transform-origin:38px 26px;
+    animation:wave 1.1s ease-in-out infinite}
+  @keyframes wave{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(16deg)}}
+  #cakeBox{margin:8px 0 4px;cursor:pointer}
+  #end .hintc{font-size:12px;color:rgba(255,255,255,.5);min-height:18px;letter-spacing:1px}
+  #end .replay{margin-top:14px}
+  .sndBtn{position:absolute;top:14px;right:14px;pointer-events:auto;cursor:pointer;
+    width:34px;height:34px;border-radius:99px;background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
+  .sndBtn svg{width:17px;height:17px;fill:#fff;opacity:.85}
+
+  /* ---- 许愿 / 回访面板 ---- */
+  .wishPanel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(8,6,16,.74);backdrop-filter:blur(6px);z-index:25;padding:18px}
+  .wishPanel.on{display:flex;animation:fade .32s ease both}
+  .wishCard{width:100%;max-width:360px;text-align:center;padding:22px 22px 20px;border-radius:22px;
+    background:linear-gradient(160deg,rgba(52,38,78,.98),rgba(30,22,50,.98));
+    border:1px solid rgba(255,211,107,.28);box-shadow:0 18px 60px rgba(0,0,0,.5)}
+  .wishSeal{width:52px;height:52px;margin:0 auto 6px;border-radius:50%;
+    background:linear-gradient(135deg,#FFD36B,#FF9A5C);display:flex;align-items:center;
+    justify-content:center;font-size:26px;box-shadow:0 6px 18px rgba(255,150,80,.4)}
+  .wishCard h3{margin:6px 0 2px;font-size:19px;letter-spacing:1px;color:#FFF3D0}
+  .wishCard p{margin:0 0 14px;font-size:12px;color:rgba(255,255,255,.6)}
+  .wishTabs{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+  .wtab{cursor:pointer;pointer-events:auto;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.06);color:rgba(255,255,255,.72);font:inherit;font-size:13px;
+    padding:7px 18px;border-radius:999px}
+  .wtab.on{background:linear-gradient(135deg,#FFD36B,#FF9A5C);color:#241528;border-color:transparent;font-weight:700}
+  #wishText{width:100%;height:96px;resize:none;box-sizing:border-box;padding:11px 12px;
+    border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(10,8,20,.6);
+    color:#fff;font:inherit;font-size:14px;line-height:1.6}
+  #wishText:focus{outline:none;border-color:#FFC24B}
+  .wishCount{text-align:right;font-size:11px;color:rgba(255,255,255,.42);margin-top:4px}
+  .recBtn{cursor:pointer;pointer-events:auto;border:0;font:inherit;font-size:14px;font-weight:700;
+    color:#fff;background:rgba(255,111,165,.85);padding:11px 26px;border-radius:999px}
+  .recBtn.rec{background:#e8504f;animation:recPulse 1s ease-in-out infinite}
+  @keyframes recPulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .recHint{font-size:11px;color:rgba(255,255,255,.5);margin-top:9px;min-height:16px}
+  #wishAudioPlay{width:100%;margin-top:10px}
+  .revisitWish{box-sizing:border-box;min-height:74px;max-height:190px;overflow:auto;text-align:left;
+    padding:12px 14px;border-radius:12px;background:rgba(10,8,20,.72);
+    border:1px solid rgba(255,211,107,.2);color:#FFF3D0;font-size:14px;line-height:1.7;
+    margin-bottom:14px;word-break:break-word}
+  /* 日期已移到标题正下方：这里只收紧标题与日期的间距，正文框再留呼吸空间 */
+  #revisitPanel h3{margin-bottom:5px}
+  .revisitWish #revisitBody{display:block}
+  .revisitWish audio{width:100%;margin-top:6px}
+  .wishActs{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .wishActs .btn{padding:11px 20px;font-size:14px}
+  .btn.ghost{background:rgba(255,255,255,.1);color:#FFF3D0;border:1px solid rgba(255,255,255,.2);
+    box-shadow:none}
+  /* 关上的信封（回访第一步） */
+  .envArt{position:relative;width:118px;height:80px;margin:4px auto 10px}
+  .envArt .body{position:absolute;inset:0;border-radius:8px;
+    background:linear-gradient(150deg,#FFF6DC,#F3D99B);border:2px solid #D9A441;
+    box-shadow:0 10px 26px rgba(0,0,0,.4)}
+  .envArt .flap{position:absolute;left:0;right:0;top:0;height:52px;border-radius:8px 8px 40% 40%;
+    background:linear-gradient(160deg,#FFF1CC,#EBCD88);border:2px solid #D9A441;border-bottom:0;
+    clip-path:polygon(0 0,100% 0,50% 100%)}
+  .envArt .seal{position:absolute;left:50%;top:46px;transform:translateX(-50%);width:26px;height:26px;
+    border-radius:50%;background:linear-gradient(135deg,#FF7FA8,#C24E7C);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;
+    box-shadow:0 3px 10px rgba(194,78,124,.6)}
+  .wishDate{display:block;font-size:12px;color:#FFD36B;opacity:.9;margin:0 0 12px;letter-spacing:.5px}
+  /* 递信/睡觉的小提示气泡 */
+  #wishToast{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);z-index:24;
+    pointer-events:none;padding:9px 18px;border-radius:999px;font-size:13px;letter-spacing:.5px;
+    background:rgba(20,14,36,.86);border:1px solid rgba(255,211,107,.3);color:#FFF3D0;
+    opacity:0;transition:opacity .3s ease;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+  #wishToast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+  <canvas id="fx"></canvas>
+  <div id="curtain"></div>
+
+  <div id="hud">
+    <div class="topbar">
+      <div class="tip" id="tip"></div>
+      <div class="timerRow" id="timerRow">
+        <div class="tnum" id="tnum">0.00</div>
+        <div class="bar"><div class="barIn" id="barIn"></div></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="tapHint" id="tapHint"></div>
+    <div class="sndBtn" id="sndBtn">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+    </div>
+  </div>
+
+  <div class="modal" id="failModal">
+    <div class="card">
+      <h3>差一点点…</h3>
+      <p>时间到，她滑下来了<br>点住发光的岩点，一步一步往上爬</p>
+      <button class="btn" id="retryBtn">再来一次</button>
+    </div>
+  </div>
+
+  <div id="wishToast"></div>
+
+  <div id="end">
+    <div class="kicker">HAPPY BIRTHDAY</div>
+    <h1>生日快乐</h1>
+    <div class="sub">在呼噜的陪伴下<br>今天的愿望，一定都会实现</div>
+    <div id="endCats"></div>
+    <div id="cakeBox"></div>
+    <div class="hintc" id="hintC">把愿望留在烛光里 ✨</div>
+    <button class="btn replay" id="replayBtn">开心循环</button>
+  </div>
+
+  <!-- 许愿面板：小猫递来信封后，打字或录音许愿 -->
+  <div class="wishPanel" id="wishPanel">
+    <div class="wishCard">
+      <div class="wishSeal">✉</div>
+      <h3>写给生日的愿望</h3>
+      <p>把悄悄话装进信里，交给呼噜吧</p>
+      <div class="wishTabs">
+        <button class="wtab on" id="wishTabType">✎ 打字</button>
+        <button class="wtab" id="wishTabAudio">● 录音</button>
+      </div>
+      <div id="wishTypeWrap">
+        <textarea id="wishText" maxlength="200" placeholder="写下你的愿望…"></textarea>
+        <div class="wishCount"><span id="wishCount">0</span> / 200</div>
+      </div>
+      <div id="wishAudioWrap" style="display:none">
+        <button class="recBtn" id="recBtn">● 开始录音</button>
+        <div class="recHint" id="recHint">点一下开始，再点一下结束（最长 15 秒）</div>
+        <audio id="wishAudioPlay" controls style="display:none"></audio>
+      </div>
+      <div class="wishActs">
+        <button class="btn" id="wishSend">把愿望交给小猫</button>
+        <button class="btn ghost" id="wishSkip">先不写啦</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 回访第一步：小猫在灯的背景里送来一封「关上的信」 -->
+  <div class="wishPanel" id="envClosedPanel">
+    <div class="wishCard">
+      <div class="envArt"><div class="body"></div><div class="flap"></div><div class="seal">♥</div></div>
+      <h3>呼噜送来了一封信</h3>
+      <p>打开看看上次写下的愿望吧</p>
+      <div class="wishActs">
+        <button class="btn" id="envOpenBtn">打开信封</button>
+        <button class="btn ghost" id="envNewBtn">重新许愿</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 回访第二步：打开信 → 看到上次愿望与许愿日期 → 保留 / 重新许愿 -->
+  <div class="wishPanel" id="revisitPanel">
+    <div class="wishCard">
+      <div class="wishSeal">✉</div>
+      <h3>上次许下的愿望</h3>
+      <div class="wishDate" id="revisitDate"></div>
+      <div class="revisitWish" id="revisitWish"><div id="revisitBody"></div></div>
+      <div class="wishActs">
+        <button class="btn" id="revisitKeep">保留愿望</button>
+        <button class="btn ghost" id="revisitNew">重新许愿</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ==========================================================================
+   工具
+   ========================================================================== */
+var NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent){
+  var e=document.createElementNS(NS,tag);
+  if(attrs) for(var k in attrs) e.setAttribute(k,attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function $(id){return document.getElementById(id);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function easeInOut(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function easeBack(t){var c=1.7;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);}
+function seeded(seed){var s=seed;return function(){s=(s*9301+49297)%233280;return s/233280;};}
+function blobPts(n,r,rnd,squash){
+  var p=[];
+  for(var i=0;i<n;i++){
+    var a=i/n*Math.PI*2, rr=r*(0.78+rnd()*0.46);
+    p.push([Math.cos(a)*rr,Math.sin(a)*rr*(squash||1)]);
+  }
+  return p;
+}
+function smooth(pts){
+  var n=pts.length;
+  function mid(a,b){return[(a[0]+b[0])/2,(a[1]+b[1])/2];}
+  var m=mid(pts[n-1],pts[0]);
+  var d="M"+m[0].toFixed(1)+" "+m[1].toFixed(1);
+  for(var i=0;i<n;i++){
+    var c=pts[i],x=mid(c,pts[(i+1)%n]);
+    d+=" Q"+c[0].toFixed(1)+" "+c[1].toFixed(1)+" "+x[0].toFixed(1)+" "+x[1].toFixed(1);
+  }
+  return d+"Z";
+}
+function polar(a,r){return [Math.cos(a)*r,Math.sin(a)*r];}
+
+/* ==========================================================================
+   音效（纯 WebAudio 合成）
+   ========================================================================== */
+var AC=null,muted=false;
+function ac(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=false;}}
+  if(AC&&AC.state==="suspended")AC.resume();
+  return AC;
+}
+function tone(f,dur,type,vol,to,delay){
+  var c=ac();if(!c||muted)return;
+  var t=c.currentTime+(delay||0);
+  var o=c.createOscillator(),g=c.createGain();
+  o.type=type||"sine";o.frequency.setValueAtTime(f,t);
+  if(to)o.frequency.exponentialRampToValueAtTime(Math.max(30,to),t+dur);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.linearRampToValueAtTime(vol||.18,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.04);
+}
+function noise(dur,vol,freq){
+  var c=ac();if(!c||muted)return;
+  var t=c.currentTime;
+  var n=c.createBufferSource(),b=c.createBuffer(1,Math.max(1,Math.floor(c.sampleRate*dur)),c.sampleRate);
+  var d=b.getChannelData(0);
+  for(var i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
+  n.buffer=b;
+  var f=c.createBiquadFilter();f.type="lowpass";f.frequency.value=freq||800;
+  var g=c.createGain();g.gain.value=vol||.15;
+  n.connect(f);f.connect(g);g.connect(c.destination);n.start(t);
+}
+var SFX={
+  thud:function(){noise(.17,.24,480);tone(94,.17,"sine",.28,42);},
+  place:function(){tone(620,.07,"square",.08,880);tone(960,.09,"triangle",.06,1280,.05);},
+  wrong:function(){tone(198,.17,"sawtooth",.085,138);},
+  pick:function(){tone(520,.05,"triangle",.06,720);},
+  grab:function(){tone(1180,.045,"square",.05,1480);tone(720,.06,"sine",.045,920,.02);},
+  slip:function(){noise(.3,.15,1500);tone(430,.3,"sawtooth",.06,170);},
+  pop:function(){tone(900,.06,"sine",.1,1420);},
+  blow:function(){noise(.44,.2,1000);},
+  step:function(){tone(300,.05,"sine",.05,220);},
+  /* 舞蹈节拍：一高一低的轻快音 */
+  beat:function(hi){tone(hi?880:660,.07,"triangle",.07);},
+  meow:function(){tone(760,.12,"sawtooth",.06,980);tone(980,.14,"sine",.05,700,.11);},
+  cheer:function(){[784,988,1175].forEach(function(f,i){tone(f,.22,"triangle",.1,null,i*.07);});},
+  win:function(){[523,659,784,1047,1319].forEach(function(f,i){tone(f,.45,"triangle",.12,null,i*.085);});},
+  /* 缝纫机：连续短促的机针声 */
+  sewStart:function(){tone(320,.09,"square",.05,240);},
+  stitch:function(){tone(1500,.03,"square",.028,1900);},
+  /* 按钮：短促的"嗒" */
+  press:function(){tone(180,.09,"square",.09,90);noise(.09,.12,700);}
+};
+
+/* ==========================================================================
+   配置
+   ========================================================================== */
+var W=400, H=760;
+var WALL_TOP=300, WALL_BOT=2420, GROUND=1900;
+/* 墙体左右边界：墙比原来更宽，画面更饱满、人物与岩点的比例更协调；
+   仍是「高 > 宽」的竖墙，两侧露出夜空。攀爬近景随女生，仍在墙内。 */
+var WALL_L=-250, WALL_R=650;
+var GOAL={x:206,y:452};
+var WIN_Y=450;
+var HOLD_TIME=18.0;
+/* 三个镜头档位：
+   close 近景（跳舞/出拳，看得清角色）→ ov 全景（看整面墙的路线）→ 1 跟随（攀岩） */
+/* 全景镜头：需覆盖世界 y 从 340（顶部凹陷上沿）到 1900（地面），
+   视窗高 760 → k ≈ 0.45。
+   camY 取值让地面落在屏幕 ~620 处，给底部岩点筐留出空间不遮挡角色。 */
+var OV_K=0.45, OV_TOP=340, OV_Y=-235;
+/* 近景：让角色占约 1/3 屏高，同时保证一人一猫都在画面内。
+   猫在 x=272，与女生(150) 相距 122，需 122*k < 视口可视世界宽度。
+   逻辑画布宽 400，取 k=1.15 时两人横跨 140，仍在 400 内。 */
+var CLOSE_K=1.15, CLOSE_Y=-1550;
+/* 插曲折：中景。人物约 180 单位高，viewBox 高 700~900，
+   取 k=1.35 让角色占到屏高 25% 左右，细节看得清，
+   同时横向仍容得下「女生 + 道具」（两者相距约 150 世界单位）。 */
+var STORY_K=1.35;
+
+/* 女生站位与猫站位（世界坐标） */
+var GIRL_HOME={x:150,y:GROUND};
+var CAT_HOME={x:272,y:GROUND};
+/* 灯幕：蘑菇灯放在墙前的地面上，女孩站在灯左侧，猫蜷在灯罩下睡觉。
+   灯被拍亮两次后，猫醒来跑向墙根，女孩跟着跑过去。 */
+var LAMP_X=150, LAMP_LIGHT_Y=GROUND-196;   // 灯座 x / 灯罩发光中心的世界 y
+/* 独立黑底开场：灯居中、猫蜷在灯罩下睡觉。
+   拍灯的是一只从画面外伸进来的手（不是站着的整个人），
+   猫醒来跑出画面 → 女孩从另一侧冲进来追 → 淡出黑底、切入墙页面。
+   坐标都在世界空间，但这一幕用专门的开场镜头 INTRO_K / INTRO_Y 居中。 */
+var INTRO_K=1.35;                            // 开场镜头放大：灯座加大后略拉远，整盏灯+猫都在画内
+/* 灯座加大：睡猫蜷在圆盘底座上（参考商品图），x 略偏灯柱右侧、y 抬到上表面 */
+var LAMP_BASE_RX=92, LAMP_BASE_RY=20;
+var LAMP_CAT_SLEEP_X=LAMP_X+22;
+var LAMP_CAT_SLEEP_Y=GROUND-16;              // 睡猫脚底落在灯座上表面
+var LAMP_CAT_FLEE_X=470;                     // 猫向右跑出画面
+var LAMP_HAND_IN_X=LAMP_X-210, LAMP_HAND_Y=LAMP_LIGHT_Y-30;  // 拍灯手待命/落点
+var LAMP_GIRL_IN_X=-120;                     // 女孩从画面左侧冲进来追猫
+
+/* --------------------------------------------------------------------------
+   真实攀岩岩点形态
+   参考真实 gym hold 的结构特征，而不是几何图形：
+   jug    大而深，下缘明显内凹（整只手能扣住）
+   crimp  薄窄横棱，只能用指尖捏
+   pinch  上下两瓣、中间收腰，两侧夹
+   sloper 圆润大包，无正边，靠摩擦
+   pocket 有洞，手指插进去（洞用 evenodd 真挖穿）
+   -------------------------------------------------------------------------- */
+var HOLD_PATH={
+  /* jug：顶宽厚、底缘中央深凹，缺口向上开口 */
+  jug:"M-31,-4 C-34,-21 -19,-32 0,-32 C19,-32 34,-21 31,-4 "+
+     "C29,4 24,8 18,9 C10,3 -10,3 -18,9 C-24,8 -29,4 -31,-4 Z",
+  /* jug 下缘内凹：贴着轮廓下沿的深色弧，标示扣得住的地方 */
+  jugIn:"M-18,9 C-10,3 10,3 18,9",
+  jugLip:"M-31,-4 C-29,4 -24,8 -18,9",
+  /* crimp：薄而窄的斜横棱 */
+  crimp:"M-36,-8 C-33,-15 -14,-19 3,-17 C21,-15 33,-9 35,-2 "+
+        "C24,3 -4,6 -26,2 C-34,0 -38,-4 -36,-8 Z",
+  crimpIn:"M-35,-2 C-24,3 24,3 35,-2",
+  crimpLip:"M-36,-8 C-33,-15 -14,-19 3,-17",
+  /* pinch：上下两瓣、中间明显收腰 */
+  pinch:"M-20,-30 C-8,-33 -4,-22 -6,-13 C-8,-7 -8,-1 -6,5 C-4,15 -8,30 -20,30 "+
+        "C-29,30 -33,17 -30,6 C-27,-3 -27,-13 -29,-21 C-30,-27 -27,-29 -20,-30 Z",
+  pinchIn:"M-27,0 C-23,4 -23,-4 -27,0",
+  pinchLip:"M-20,-30 C-8,-33 -4,-22 -6,-13",
+  /* sloper：光滑圆润的大包，无正边 */
+  sloper:"M-34,12 C-36,-9 -23,-28 0,-28 C23,-28 36,-9 34,12 "+
+         "C22,21 -22,21 -34,12 Z",
+  sloperIn:"M-32,10 C-20,17 20,17 32,10",
+  sloperLip:"M-34,12 C-36,-9 -23,-28 0,-28",
+  /* pocket：不规则外形 + 一个真正挖穿的洞 */
+  pocket:"M-30,3 C-34,-15 -20,-30 2,-28 C22,-26 32,-13 30,4 C28,17 11,26 -7,24 "+
+         "C-24,22 -27,13 -30,3 Z "+
+         "M-7,-6 C-14,-6 -18,1 -15,7 C-12,13 -4,14 1,9 C6,4 1,-6 -7,-6 Z"
+};
+
+/* 五种岩点：名称 / 配色 / 玩法定位 */
+var TYPES={
+  jug   :{name:"大杯", en:"jug",    color:"#FF8A3D", dark:"#B84A14", light:"#FFC08A",
+          desc:"最好抓",  boost:1.00, stam:0.40},
+  crimp :{name:"薄棱", en:"crimp",  color:"#FFD24A", dark:"#A8820F", light:"#FFEDA8",
+          desc:"要用力",  boost:0.86, stam:0.26},
+  pinch :{name:"捏点", en:"pinch",  color:"#38D6C4", dark:"#147F76", light:"#A8F0E6",
+          desc:"夹住它",  boost:0.94, stam:0.32},
+  sloper:{name:"圆包", en:"sloper", color:"#FF6FA5", dark:"#A82F62", light:"#FFB4CE",
+          desc:"靠摩擦",  boost:0.78, stam:0.22},
+  pocket:{name:"指洞", en:"pocket", color:"#A98BFF", dark:"#5D44A8", light:"#D8CBFF",
+          desc:"插进去",  boost:1.10, stam:0.46}
+};
+var ORDER=["pinch","jug","sloper","crimp","pocket"];   // 托盘顺序（≠ 墙上顺序）
+var SLOTS=[                                        // 墙上的凹陷，自下而上
+  {x:110,y:1560,t:"jug"},
+  {x:290,y:1300,t:"crimp"},
+  {x:96, y:1040,t:"pinch"},
+  {x:300,y:780, t:"sloper"},
+  {x:120,y:520, t:"pocket"}
+];
+/* 攀岩时女孩横向站位：跟随当前岩点 x（略偏内侧），让左右腾挪明显。
+   墙已加宽到 -250..650，岩点横向跨度拉到 ~200，够看清左右换脚。 */
+var CLIMB_FOLLOW=0.5;   /* 相机横向只跟一半，女孩左右移动才在屏幕上可见 */
+/* 岩点分列女生左右脚两侧：左 2 个、右 3 个（相对女生站位 x 的偏移）。
+   岩点已放大（直径约 110 世界单位），间距 115~120 才不会互相压住；
+   整体跨度控制在全景可视宽度内，两端木架都不出画。 */
+var TRAY_L=[-250,-130], TRAY_R=[120,235,350];
+function trayX(i){return i<2?TRAY_L[i]:TRAY_R[i-2];}
+/* 岩点筐挂在 camG（世界空间）里，纵向由 followTray() 跟随女生，
+   这里的 TRAY_Y 只是组内基准偏移，恒为 0。 */
+var TRAY_Y=0, VIEW_H=H;
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+var ACT=0;
+var IDLE=0, DANCE=1, CATIN=2, DUET=3, PUNCH=4, STORY=5, CLIMB=6, WIN=7, FAIL=8;
+/* 登顶后的四段小互动：缝纫做领结 → 给猫戴上 → 拼生日歌音符 → 猫推蛋糕 */
+var SEW=9, WEAR=10, NOTES=11, PARADE=12;
+/* 新增开场：灯幕（拍灯唤醒小猫）。放在现有编号之后，避免影响各幕区间判断。 */
+var LAMP=13;
+/* 戴领结后的拉近特写（领结展示 + 爱心闪光），之后才进入音符幕 */
+var SHOWBOW=14;
+/* 登顶尾声：猫推蛋糕后递信封→打字/录音许愿→交回猫→女孩吹蜡烛 */
+var WISH=15;
+/* 二次进入：小猫送来上次的愿望信，查看/续愿后睡觉，再继续探索 */
+var REVISIT=16;
+/* STORY 幕内的五个小关。编号与 SLOTS 槽位索引一一对应（0..4） */
+var STEP_WAND=0,STEP_SEW=1,STEP_SHOOT=2,STEP_BOWTIE=3,STEP_RED=4;
+var S={
+  act:IDLE, placed:0, timeLeft:HOLD_TIME, climbElapsed:0,
+  girlX:GIRL_HOME.x, girlY:GIRL_HOME.y,
+  catX:560, catY:GROUND, catFace:-1, catVisible:false, catFade:1,
+  pose:"idle", poseT:99, wob:0, girlRun:false,
+  armTarget:null,
+  gripping:false, gripT:0, stamina:1, slipT:0, reached:false,
+  /* 逐岩点攀爬：只有玩家点击目标后才产生一段抓握/拉身位移 */
+  climbTarget:-1, climbGoal:false, climbT:0, climbDur:.65,
+  climbFrom:null, climbTo:null, hangT:0,
+  /* 安装与攀爬任务共用步骤编号，但进度分开计数 */
+  step:-1,            /* 当前安装/任务对应的岩点，-1=未开始 */
+  stepDone:0,         /* 攀爬途中已完成的任务数（不是安装数） */
+  phase:"place",      /* place=安装；story=岩点任务；climb=向上爬；transition=短暂过渡 */
+  pickReady:0,        /* place 阶段为 1，允许玩家点击脚边岩点安装 */
+  selType:null,       /* 安装阶段：先选中的脚边岩点类型；再点墙上凹槽匹配才装 */
+  wandT:0, wandHits:0, catPeek:0,
+  sewStage:0,               /* 阁楼缝纫分步：0选布料 1放机器 2踩踏板 3缝制中 */
+  sewT:0, sewProg:0, sewStitch:0, sewStartAt:0, sewDone:false,
+  shootScore:0, shootShots:0, shootHit:0,
+  bowOn:0, bowPos:null, bowPlaced:false, dragBow:false, bowHeld:false,
+  redPress:0, cakeOut:0,
+  /* 登顶后章节状态 */
+  fabricPicked:false, wearT:0, bowWorn:false,
+  showT:0, showDone:false,
+  notesPlaced:0, notePick:-1, musicPlaying:false, paradeT:0, paradeDone:false,
+  /* 灯幕开场：拍灯两次 → 猫醒来跑向墙 → 女孩跟上 */
+  lampLevel:0,        /* 0=灭 1=微亮 2=最亮 */
+  lampPhase:"wait",   /* wait=等待拍灯 wake=猫苏醒 run=跑向墙 */
+  lampT:0, lampWoke:false,
+  /* 登顶尾声：递信 → 许愿 → 交回猫 → 吹蜡烛 */
+  wishPhase:"",       /* give=递信 open=等待拆信吹烛 done=完成 */
+  wishType:"text",    /* text=打字 audio=录音 */
+  wishText:"",        /* 本次愿望文字 */
+  wishData:"",        /* 本次愿望录音 dataURL */
+  wishDone:false,     /* 本轮是否已经许过愿 */
+  /* 二次进入回访 */
+  revisitPhase:"",    /* enter=猫带信走来 sealed=关上的信 view=打开信 sleep=猫睡觉 */
+  revisitT:0,
+  keepWish:false,     /* 二次进入是否保留上次愿望 */
+  hasPrevWish:false   /* 本地是否已有上次愿望 */
+};
+/* 领结拖拽用的指针位置（root/svg 空间） */
+var mouseSvg={x:0,y:0};
+var cam={x:200,y:OV_Y,k:OV_K,tx:200,ty:OV_Y,tk:OV_K};
+var shakeA=0,shakeT=0;
+function shake(a,d){shakeA=a;shakeT=d;}
+
+/* ==========================================================================
+   场景引用
+   ========================================================================== */
+var scene=$("scene"),root,camG,wallG,groundG,dentG,holdG,goalG,
+           girlG,catG,trayG,fxG,noteG,propG,uiG,afterG,lampG,
+           skyG,introBg,handG,sleepG,visitG,introWordG;
+var dents=[],G={},C={},P={},L={},skyBg=null,groundFill=null,groundLip=null;
+
+/* ==========================================================================
+   搭建场景
+   ========================================================================== */
+function build(){
+  scene.innerHTML="";
+  var defs=el("defs",null,scene);
+
+  /* 砖纹 */
+  var pat=el("pattern",{id:"brick",width:104,height:46,patternUnits:"userSpaceOnUse"},defs);
+  el("rect",{width:104,height:46,fill:"#2a2340"},pat);
+  el("rect",{x:2,y:2,width:46,height:20,rx:4,fill:"#342c52"},pat);
+  el("rect",{x:54,y:2,width:46,height:20,rx:4,fill:"#322a4c"},pat);
+  el("rect",{x:2,y:25,width:22,height:19,rx:4,fill:"#302949"},pat);
+  el("rect",{x:30,y:25,width:22,height:19,rx:4,fill:"#342c52"},pat);
+  el("rect",{x:58,y:25,width:22,height:19,rx:4,fill:"#2f2847"},pat);
+  el("rect",{x:86,y:25,width:16,height:19,rx:4,fill:"#342c52"},pat);
+
+  var sky=el("linearGradient",{id:"sky",x1:0,y1:0,x2:0,y2:1},defs);
+  el("stop",{offset:0,"stop-color":"#110d24"},sky);
+  el("stop",{offset:1,"stop-color":"#251b42"},sky);
+  var mg=el("radialGradient",{id:"moonG"},defs);
+  el("stop",{offset:0,"stop-color":"#FFF6DC"},mg);
+  el("stop",{offset:.66,"stop-color":"#FFE3A6"},mg);
+  el("stop",{offset:1,"stop-color":"#FFC24B","stop-opacity":"0"},mg);
+  /* 蘑菇灯的暖光晕：随拍灯次数放大、增亮 */
+  var lg=el("radialGradient",{id:"lampGlow"},defs);
+  el("stop",{offset:0,"stop-color":"#FFE7A6","stop-opacity":".85"},lg);
+  el("stop",{offset:.42,"stop-color":"#FFC869","stop-opacity":".42"},lg);
+  el("stop",{offset:1,"stop-color":"#FF9E3D","stop-opacity":"0"},lg);
+
+  /* 岩点体积感：左上受光的斜向渐变 */
+  Object.keys(TYPES).forEach(function(k){
+    var t=TYPES[k];
+    var g=el("linearGradient",{id:"g_"+k,x1:.18,y1:0,x2:.72,y2:1},defs);
+    el("stop",{offset:0,"stop-color":t.light},g);
+    el("stop",{offset:.34,"stop-color":t.color},g);
+    el("stop",{offset:1,"stop-color":t.dark},g);
+  });
+
+  root=el("g",{id:"root"},scene);
+  camG=el("g",{id:"cam"},root);
+
+  /* ---- 开场纯黑底罩：灯幕时盖住墙/夜空/地面，只留灯与角色 ---- */
+  introBg=el("rect",{id:"introBg",x:-1400,y:-2400,width:3200,height:5200,
+    fill:"#05040a",display:"none","pointer-events":"none"},camG);
+
+  /* ---- 开场黑底上的生日文字：拍第一下隐约浮现，第二下更清晰 ----
+     放在黑底与灯之间（后于 introBg 插入即位于其上），开场镜头能把整句收进画面。 */
+  introWordG=el("g",{id:"introWord",display:"none","pointer-events":"none"},camG);
+  var iw1=el("text",{x:200,y:LAMP_LIGHT_Y-205,"text-anchor":"middle",
+    "font-family":"var(--round-font)","font-size":"27","font-weight":"800",
+    "letter-spacing":"2",fill:"#FFE6A8",stroke:"#B97A2E","stroke-width":"4",
+    "paint-order":"stroke",opacity:"0",id:"introWordText"},introWordG);
+  iw1.textContent="珂珂生日快乐";
+
+  /* ---- 夜空 ---- */
+  skyG=el("g",null,camG);
+  /* 天空铺满到地面：墙收窄成瘦高立柱后，两侧露出的是夜色远景而非纯黑。 */
+  skyBg=el("rect",{x:-700,y:-760,width:1900,height:GROUND+760,fill:"url(#sky)"},skyG);
+  el("circle",{cx:340,cy:40,r:128,fill:"url(#moonG)",opacity:".2"},skyG);
+  el("circle",{cx:340,cy:40,r:42,fill:"#FFF3D6",opacity:".9"},skyG);
+  el("circle",{cx:329,cy:31,r:42,fill:"#1a1330",opacity:".6"},skyG);
+  var sr=seeded(17);
+  for(var i=0;i<80;i++)
+    el("circle",{cx:(sr()*1500-750).toFixed(0),cy:(-740+sr()*1040).toFixed(0),
+      r:(.6+sr()*1.9).toFixed(1),fill:"#fff",opacity:(.2+sr()*.6).toFixed(2)},skyG);
+  [[110,100,160,18],[310,160,190,22],[-70,200,160,15],[420,240,140,14]].forEach(function(c){
+    el("ellipse",{cx:c[0],cy:c[1],rx:c[2],ry:c[3],fill:"#3c2c62",opacity:".5"},skyG);
+  });
+
+  /* ---- 墙 ---- */
+  wallG=el("g",null,camG);
+  var WW=WALL_R-WALL_L;
+  el("rect",{x:WALL_L,y:WALL_TOP,width:WW,height:WALL_BOT-WALL_TOP,fill:"url(#brick)"},wallG);
+  el("rect",{x:WALL_L,y:WALL_TOP,width:WW,height:22,fill:"#3e3360"},wallG);
+  el("rect",{x:WALL_L,y:WALL_TOP+22,width:WW,height:9,fill:"#1c1632",opacity:".85"},wallG);
+  /* 墙的两侧压暗，做出立体边缘，强化瘦高立柱的感觉 */
+  el("rect",{x:WALL_L,y:WALL_TOP,width:14,height:WALL_BOT-WALL_TOP,fill:"#120d24",opacity:".55"},wallG);
+  el("rect",{x:WALL_R-14,y:WALL_TOP,width:14,height:WALL_BOT-WALL_TOP,fill:"#120d24",opacity:".55"},wallG);
+  var vr=seeded(29);
+  for(var v=0;v<9;v++){
+    var vx=WALL_L+24+vr()*(WW-48), vy=WALL_TOP+50+vr()*(WALL_BOT-WALL_TOP-240), len=70+vr()*150;
+    var vg=el("g",{opacity:(.28+vr()*.3).toFixed(2)},wallG);
+    el("path",{d:"M"+vx.toFixed(0)+" "+vy.toFixed(0)+" q"+(16+vr()*30).toFixed(0)+" "+
+      (len/2).toFixed(0)+" 0 "+len.toFixed(0),
+      stroke:"#3f7a5a","stroke-width":(3+vr()*3).toFixed(1),fill:"none","stroke-linecap":"round"},vg);
+    for(var lf=0;lf<4;lf++){
+      var ly=vy+len*(.22+lf*.2), ox=(lf%2?1:-1)*(7+vr()*8);
+      el("ellipse",{cx:(vx+ox).toFixed(0),cy:ly.toFixed(0),rx:8,ry:3.6,fill:"#4b9169",
+        transform:"rotate("+(-28+lf*18)+" "+vx.toFixed(0)+" "+ly.toFixed(0)+")"},vg);
+    }
+  }
+  /* 吊灯 */
+  [[64,470],[342,790],[92,1150],[330,1520],[190,1790]].forEach(function(l){
+    var lg=el("g",null,wallG);
+    el("line",{x1:l[0],y1:WALL_TOP,x2:l[0],y2:l[1],stroke:"#4b406d","stroke-width":2},lg);
+    el("path",{d:"M"+(l[0]-13)+" "+l[1]+" h26 l-6 17 h-14 z",fill:"#6d5c3b"},lg);
+    el("circle",{cx:l[0],cy:l[1]+22,r:16,fill:"#FFCE6B",opacity:".26"},lg);
+    el("circle",{cx:l[0],cy:l[1]+19,r:7,fill:"#FFE9A8"},lg);
+  });
+
+  /* ---- 地面 ---- */
+  groundG=el("g",null,camG);
+  groundFill=el("rect",{x:-700,y:GROUND,width:1900,height:420,fill:"#241c33"},groundG);
+  groundLip=el("path",{d:"M-700,"+GROUND+" q150,-14 300,0 q150,12 300,-2 q150,-14 300,2 q150,12 300,-4 q150,-14 300,2 L1000,"+
+    (GROUND+420)+" L-700,"+(GROUND+420)+" Z",fill:"#3b2d47"},groundG);
+  for(var gg=0;gg<30;gg++){
+    var gx=-600+((gg*101)%1700);
+    el("path",{d:"M"+gx+" "+(GROUND+9+(gg%5)*3)+" q4,-14 8,0",stroke:"#4d6d53",
+      "stroke-width":2.4,fill:"none","stroke-linecap":"round"},groundG);
+  }
+
+  dentG=el("g",null,camG);
+  holdG=el("g",null,camG);
+  goalG=el("g",null,camG);
+  /* 登顶后的阁楼舞台背景：放在角色/道具之下、墙地面之上，
+     这样阁楼内景盖住室外夜空，而女孩、猫、缝纫机仍在其前。
+     登顶舞台道具独立成层，不被 clearProps() 的剧情道具清理波及。 */
+  afterG=el("g",{id:"afterG"},camG);
+  /* 蘑菇灯（开场互动道具）：画在墙/地面之上、角色之下，
+     女孩与睡猫都站在灯的前面。灯幕结束后保留在场景里。 */
+  lampG=el("g",{id:"lamp"},camG);
+  buildLamp();
+  /* 道具层在角色之上，便于绘制前景家具 */
+  propG=el("g",{id:"propG"},camG);
+  buildGoal();
+  girlG=buildGirl();
+  camG.appendChild(girlG);
+  catG=buildCat();
+  camG.appendChild(catG);
+  /* 睡觉专用猫：开场拍灯时显示蜷缩成一团的睡猫（比站立猫更贴合灯座） */
+  sleepG=el("g",{id:"sleepCat"},camG);
+  buildSleepCat();
+  /* 拍灯的手：开场时从画面外伸进来拍灯，独立于整个人物。
+     放在角色之上，绿灯/猫之后。 */
+  handG=el("g",{id:"introHand"},camG);
+  buildHand();
+  /* 回访专用前景层：灯幕背景里小猫送来的信封，位于角色之上；平时隐藏 */
+  visitG=el("g",{id:"visitG"},camG);
+  visitG.setAttribute("display","none");
+  /* 岩点筐放在 camG 里（世界空间），才能跟着女生上下移动。
+     画在 catG 之后 → 前景遮挡，视觉上就是"她脚边的一筐"。 */
+  trayG=el("g",{id:"tray"},camG);
+  fxG=el("g",null,root);
+  noteG=el("g",null,root);
+  /* 剧情幕的即时 UI（领结拖拽等），放在 root 空间不随镜头缩放 */
+  uiG=el("g",{id:"uiG"},root);
+
+  buildDents();
+  buildTray();
+}
+
+/* ---------- 终点 ---------- */
+function buildGoal(){
+  goalG.innerHTML="";
+  var g=goalG, y=GOAL.y;
+  el("ellipse",{id:"goalHalo",cx:GOAL.x,cy:y-4,rx:82,ry:44,fill:"#FF3B5C",opacity:".15"},g);
+  el("rect",{x:GOAL.x-64,y:y-4,width:128,height:14,rx:7,fill:"#4a3b63"},g);
+  el("rect",{x:GOAL.x-64,y:y-4,width:128,height:6,rx:3,fill:"#6a5487"},g);
+  el("rect",{x:GOAL.x-46,y:y+10,width:9,height:16,rx:3,fill:"#3a2f52"},g);
+  el("rect",{x:GOAL.x+37,y:y+10,width:9,height:16,rx:3,fill:"#3a2f52"},g);
+  el("rect",{x:GOAL.x-5,y:y-150,width:10,height:148,rx:5,fill:"#5b4a3a"},g);
+  el("rect",{x:GOAL.x-5,y:y-150,width:4,height:148,rx:2,fill:"#806c53"},g);
+  var cloth=el("g",{id:"flagCloth"},g);
+  el("path",{d:"M"+(GOAL.x+5)+" "+(y-150)+" h64 l-64 27 z",fill:"#FF3B5C"},cloth);
+  el("path",{d:"M"+(GOAL.x+5)+" "+(y-150)+" h64 l-8 8 h-56 z",fill:"#FF7590",opacity:".65"},cloth);
+  el("path",{d:"M"+(GOAL.x+38)+" "+(y-150)+" l16 8 l-16 8 z",fill:"#FFD36B",opacity:".9"},cloth);
+  el("circle",{cx:GOAL.x,cy:y-155,r:8,fill:"#FFD36B"},g);
+}
+
+/* ==========================================================================
+   蘑菇灯（开场互动道具）
+   参考商品图：橙色蘑菇造型小夜灯，三档可调光，灯罩下蜷着一只黑猫。
+   世界坐标：灯座落在 GROUND，发光中心在 LAMP_LIGHT_Y。
+   三档亮度通过 #lampGlow 光晕半径/透明度、灯罩填色与地面光斑联动。
+   ========================================================================== */
+function buildLamp(){
+  lampG.innerHTML="";
+  var g=lampG,x=LAMP_X,baseY=GROUND,ly=LAMP_LIGHT_Y;
+  /* 1. 暖光晕：初始很小很淡，拍灯后由 setLampLevel 放大增亮 */
+  L.halo=el("circle",{id:"lampHalo",cx:x,cy:ly,r:70,fill:"url(#lampGlow)",
+    opacity:"0","pointer-events":"none"},g);
+  /* 2. 地面光斑 */
+  L.pool=el("ellipse",{id:"lampPool",cx:x,cy:baseY+2,rx:96,ry:20,
+    fill:"#FFC869",opacity:"0","pointer-events":"none"},g);
+  /* 3. 灯罩：蘑菇伞盖。米黄底 + 橙色斑点；内部填色随亮度变亮 */
+  var shade=el("g",{id:"lampShade"},g);
+  el("path",{d:"M"+(x-92)+" "+ly+" C"+(x-92)+" "+(ly-58)+" "+(x-52)+" "+(ly-92)+" "+x+" "+(ly-92)+
+    " C"+(x+52)+" "+(ly-92)+" "+(x+92)+" "+(ly-58)+" "+(x+92)+" "+ly+
+    " Q"+x+" "+(ly+22)+" "+(x-92)+" "+ly+" Z",
+    fill:"#E9C48A",stroke:"#B98A4E","stroke-width":3},shade);
+  /* 灯罩下缘的暖黄发光带（随亮度增强） */
+  L.gill=el("path",{d:"M"+(x-88)+" "+(ly+2)+" Q"+x+" "+(ly+24)+" "+(x+88)+" "+(ly+2)+
+    " Q"+x+" "+(ly+14)+" "+(x-88)+" "+ly+" Z",fill:"#FFE9A8",opacity:".25"},shade);
+  /* 斑点：参考图的橙色多边形点缀 */
+  var spots=[[-58,-44,11],[-24,-70,9],[16,-66,10],[52,-40,12],[-6,-40,8],[36,-16,7]];
+  spots.forEach(function(s){
+    var pts="";for(var i=0;i<6;i++){var a=i/6*Math.PI*2;pts+=(s[0]+Math.cos(a)*s[2]).toFixed(1)+","+
+      (s[1]+Math.sin(a)*s[2]).toFixed(1)+" ";}
+    el("polygon",{points:pts.trim(),fill:"#E58B2E",opacity:".9",
+      transform:"translate("+x+","+ly+")"},shade);
+  });
+  /* 4. 灯柱（橙色）+ 大圆盘底座（参考商品图：底盘宽大、猫蜷其上） */
+  el("path",{d:"M"+(x-17)+" "+(ly+8)+" L"+(x-13)+" "+(baseY-18)+" Q"+x+" "+(baseY-8)+" "+
+    (x+13)+" "+(baseY-18)+" L"+(x+17)+" "+(ly+8)+" Z",fill:"#E07B25"},g);
+  el("path",{d:"M"+(x-13)+" "+(ly+8)+" L"+(x-10)+" "+(baseY-20),stroke:"#F19A46",
+    "stroke-width":5,fill:"none","stroke-linecap":"round"},g);
+  /* 底座三层叠出厚度；最上层留出一圈平台供睡猫趴着 */
+  el("ellipse",{cx:x,cy:baseY-6,rx:LAMP_BASE_RX,ry:LAMP_BASE_RY,fill:"#B85618"},g);
+  el("ellipse",{cx:x,cy:baseY-11,rx:LAMP_BASE_RX,ry:LAMP_BASE_RY,fill:"#E07B25"},g);
+  el("ellipse",{cx:x,cy:baseY-15,rx:LAMP_BASE_RX-8,ry:LAMP_BASE_RY-6,fill:"#F19A46"},g);
+  el("ellipse",{cx:x,cy:baseY-15,rx:LAMP_BASE_RX-30,ry:LAMP_BASE_RY-12,fill:"#FFC069",opacity:".5"},g);
+  /* 5. 整盏灯的点击热区（透明）：居中覆盖灯罩到灯座，拍灯用 */
+  L.hit=el("rect",{id:"lampHit",x:x-100,y:ly-100,width:200,height:(baseY-ly)+110,
+    fill:"transparent",style:"cursor:pointer"},g);
+  setLampLevel(0);
+}
+/* 设置灯的亮度档位 0/1/2：光晕、地面光斑、灯罩发光同步变化 */
+function setLampLevel(lv){
+  S.lampLevel=clamp(lv,0,2);
+  var conf=[
+    {halo:0, r:70, pool:0, gill:.22, shade:"#E9C48A"},
+    {halo:.55,r:150,pool:.22,gill:.6, shade:"#F5D8A0"},
+    {halo:1,  r:260,pool:.42,gill:1,   shade:"#FFEBC0"}
+  ][S.lampLevel];
+  if(L.halo){L.halo.setAttribute("r",conf.r);L.halo.setAttribute("opacity",conf.halo);}
+  if(L.pool)L.pool.setAttribute("opacity",conf.pool);
+  if(L.gill)L.gill.setAttribute("opacity",conf.gill);
+  var sh=$("lampShade");
+  if(sh){var p=sh.querySelector("path");if(p)p.setAttribute("fill",conf.shade);}
+  /* 黑底生日文字：第一下微亮只隐约透出，第二下最亮时清晰浮现 */
+  var iw=$("introWordText");
+  if(iw){
+    var wordOp=[0,0.16,0.62][S.lampLevel];
+    iw.setAttribute("opacity",wordOp);
+    iw.style.transition="opacity .55s ease";
+  }
+}
+/* ==========================================================================
+   拍灯的手：一只从画面右侧伸进来的女孩手臂（带袖口）。
+   局部原点在手掌中心，手掌朝下拍灯；通过位移动画完成"伸进来→拍→收回"。
+   ========================================================================== */
+function buildHand(){
+  if(!handG)return;
+  handG.innerHTML="";
+  var g=handG;
+  /* 小臂（从右侧伸入，身体在画面外） */
+  el("path",{d:"M12,-26 L250,-46 L252,18 L12,24 Z",fill:"#E99BB6",
+    stroke:"#B96C8B","stroke-width":3},g);
+  /* 袖口 */
+  el("path",{d:"M214,-44 L252,-47 L253,19 L215,21 Z",fill:"#F6BFD0",
+    stroke:"#B96C8B","stroke-width":2.5},g);
+  /* 手掌 */
+  el("ellipse",{cx:0,cy:0,rx:30,ry:23,fill:"#F6D2B8",stroke:"#D69C7A","stroke-width":2.5},g);
+  /* 四指并拢朝下 */
+  for(var i=0;i<4;i++){
+    el("rect",{x:-22+i*12,y:14,width:10,height:26,rx:5,fill:"#F6D2B8",
+      stroke:"#D69C7A","stroke-width":2},g);
+  }
+  /* 拇指 */
+  el("ellipse",{cx:-28,cy:-2,rx:9,ry:13,fill:"#F6D2B8",stroke:"#D69C7A",
+    "stroke-width":2,transform:"rotate(-24 -28 -2)"},g);
+  handG.setAttribute("opacity","0");
+  handG.setAttribute("display","none");
+}
+
+/* ==========================================================================
+   睡觉专用猫：开场拍灯时显示，蜷成一团贴在灯座旁。
+   与站立猫（buildCat）分开，避免"压扁站立猫"造成的头身分离。
+   局部原点在地面，向上为 -y。
+   ========================================================================== */
+function buildSleepCat(){
+  if(!sleepG)return;
+  sleepG.innerHTML="";
+  var g=sleepG;
+  /* 蜷缩的身体（横卧的椭圆） */
+  el("ellipse",{cx:0,cy:-26,rx:40,ry:26,fill:"#181325"},g);
+  el("ellipse",{cx:6,cy:-22,rx:24,ry:16,fill:"#241c36"},g);
+  /* 头贴在身体右侧，闭着眼 */
+  var head=el("g",{transform:"translate(30,-38)"},g);
+  el("path",{d:"M-16,-6 L-20,-30 L-4,-14 Z",fill:"#181325"},head);
+  el("path",{d:"M16,-6 L20,-30 L4,-14 Z",fill:"#181325"},head);
+  el("path",{d:"M-15,-9 L-17,-24 L-8,-13 Z",fill:"#56395e"},head);
+  el("path",{d:"M15,-9 L17,-24 L8,-13 Z",fill:"#56395e"},head);
+  el("circle",{cx:0,cy:-6,r:20,fill:"#181325"},head);
+  /* 睡眼（两道弯弧）与醒眼（圆瞪）分两组，醒来时切换 */
+  var shutEyes=el("g",{id:"sleepShut"},head);
+  el("path",{d:"M-11,-4 q5,4 9,0 M2,-4 q5,4 9,0",stroke:"#6a5686","stroke-width":2,
+    fill:"none","stroke-linecap":"round"},shutEyes);
+  var openEyes=el("g",{id:"sleepOpen",display:"none"},head);
+  el("ellipse",{cx:-8,cy:-4,rx:5,ry:6,fill:"#FFF3D0"},openEyes);
+  el("ellipse",{cx:8,cy:-4,rx:5,ry:6,fill:"#FFF3D0"},openEyes);
+  el("circle",{cx:-7,cy:-3,r:2.8,fill:"#FFC24B"},openEyes);
+  el("circle",{cx:9,cy:-3,r:2.8,fill:"#FFC24B"},openEyes);
+  el("path",{d:"M-3,3 l3,3 l3,-3 z",fill:"#FF8FA3"},head);
+  /* 尾巴卷过来搭在身前 */
+  el("path",{d:"M-32,-20 q-30,-2 -24,-30 q3,-14 16,-12",stroke:"#181325","stroke-width":9,
+    fill:"none","stroke-linecap":"round"},g);
+  sleepG.setAttribute("display","none");
+}
+
+/* 灯罩被拍时的抖动反馈 */
+function bumpLamp(){
+  if(!lampG)return;
+  var st=performance.now(),x=LAMP_X;
+  (function a(){
+    var t=(performance.now()-st)/340;
+    if(t>=1){lampG.setAttribute("transform","");return;}
+    var d=Math.sin(t*Math.PI*5)*(1-t)*5;
+    lampG.setAttribute("transform","rotate("+d.toFixed(2)+" "+x+" "+GROUND+")");
+    requestAnimationFrame(a);
+  })();
+}
+
+/* ==========================================================================
+   女生（长发）
+   局部坐标：原点在脚下，身体向上为 -y。全身高约 155。
+   ========================================================================== */
+function buildGirl(){
+  var g=el("g",{id:"girl"});
+  var body=el("g",{id:"gBody"},g);
+
+  /* ---- 后侧头发（在身体之后） ---- */
+  var hairBack=el("g",{id:"gHairBack"},body);
+  el("path",{d:"M-22,-104 C-38,-92 -44,-62 -40,-34 C-37,-14 -30,-6 -24,-8 "+
+                "C-28,-30 -26,-62 -14,-84 Z",fill:"#2b2036"},hairBack);
+  el("path",{d:"M22,-104 C38,-92 44,-62 40,-34 C37,-14 30,-6 24,-8 "+
+                "C28,-30 26,-62 14,-84 Z",fill:"#2b2036"},hairBack);
+  el("path",{d:"M-20,-100 C-32,-84 -36,-52 -32,-26 C-30,-12 -24,-8 -20,-12 "+
+                "C-24,-40 -22,-72 -12,-88 Z",fill:"#3a2b48"},hairBack);
+  el("path",{d:"M20,-100 C32,-84 36,-52 32,-26 C30,-12 24,-8 20,-12 "+
+                "C24,-40 22,-72 12,-88 Z",fill:"#3a2b48"},hairBack);
+
+  /* ---- 腿 ---- */
+  var legL=el("g",{id:"gLegL",transform:"rotate(-4 -6 -58)"},body);
+  el("path",{d:"M-6,-60 L-9,-30 L-7,-8",stroke:"#f0b8a0","stroke-width":13,fill:"none","stroke-linecap":"round"},legL);
+  el("ellipse",{cx:-7,cy:-4,rx:9,ry:6,fill:"#e8544f"},legL);
+  G.legL=legL;
+  var legR=el("g",{id:"gLegR",transform:"rotate(4 6 -58)"},body);
+  el("path",{d:"M6,-60 L9,-30 L7,-8",stroke:"#f6c4ad","stroke-width":13,fill:"none","stroke-linecap":"round"},legR);
+  el("ellipse",{cx:7,cy:-4,rx:9,ry:6,fill:"#e8544f"},legR);
+  G.legR=legR;
+
+  /* ---- 躯干：运动背心 + 短裤 ---- */
+  el("path",{d:"M-14,-104 C-19,-92 -20,-74 -17,-62 L17,-62 C20,-74 19,-92 14,-104 Z",fill:"#7fd4c8"},body);
+  el("path",{d:"M-14,-104 C-19,-92 -20,-74 -17,-62 L-2,-62 C-4,-78 -4,-94 -8,-104 Z",fill:"#96e2d6"},body);
+  el("path",{d:"M-17,-62 L17,-62 L15,-46 C8,-42 -8,-42 -15,-46 Z",fill:"#4a3f6b"},body);
+  el("path",{d:"M-17,-62 L0,-62 L0,-46 C-6,-43 -11,-43 -15,-46 Z",fill:"#5c4f80"},body);
+
+  /* ---- 后手臂 ---- */
+  var armL=el("g",{id:"gArmL",transform:"rotate(20 -13 -100)"},body);
+  el("path",{d:"M-13,-101 C-19,-86 -20,-72 -18,-62",stroke:"#f0b8a0","stroke-width":10,fill:"none","stroke-linecap":"round"},armL);
+  el("circle",{cx:-18,cy:-58,r:6.4,fill:"#f6c4ad"},armL);
+  G.armL=armL;
+
+  /* ---- 头 ----
+   定位与旋转分层：head 只负责定位到 (0,-124)，
+   headTilt 内含脸与全部头饰并绕头心旋转。
+   注意脸必须也放进 headTilt，否则会盖在其后的头饰上。 */
+  var head=el("g",{id:"gHead",transform:"translate(0,-124)"},body);
+  var headTilt=el("g",{id:"gHeadTilt"},head);
+  el("circle",{cx:0,cy:0,r:20,fill:"#f6c4ad"},headTilt);
+  /* 刘海（前发）：盖住发际线，两侧收进脸廓，避免头顶露白 */
+  var hairFront=el("g",{id:"gHairFront"},headTilt);
+  el("path",{d:"M-21,-4 C-24,-16 -16,-25 0,-25 C16,-25 24,-16 21,-4 "+
+                "C14,-10 8,-14 2,-13 C-6,-12 -14,-8 -20,-2 Z",fill:"#3a2b48"},hairFront);
+  el("path",{d:"M-20,-2 C-24,10 -22,22 -20,30 C-17,20 -16,8 -18,-2 Z",fill:"#3a2b48"},hairFront);
+  el("path",{d:"M20,-2 C24,10 22,22 20,30 C17,20 16,8 18,-2 Z",fill:"#3a2b48"},hairFront);
+  el("path",{d:"M-8,-20 C-2,-23 6,-22 10,-19 C4,-20 -2,-19 -8,-20 Z",fill:"#4a3760",opacity:".7"},hairFront);
+  /* 五官 */
+  var eyes=el("g",{id:"gEyes"},headTilt);
+  el("path",{d:"M-11,-2 q4,-4 8,0",stroke:"#2a1f33","stroke-width":2.4,fill:"none","stroke-linecap":"round"},eyes);
+  el("path",{d:"M3,-2 q4,-4 8,0",stroke:"#2a1f33","stroke-width":2.4,fill:"none","stroke-linecap":"round"},eyes);
+  el("ellipse",{cx:-7.5,cy:-4.5,rx:2.6,ry:3.2,fill:"#2a1f33"},eyes);
+  el("ellipse",{cx:7.5,cy:-4.5,rx:2.6,ry:3.2,fill:"#2a1f33"},eyes);
+  el("circle",{cx:-6.4,cy:-5.6,r:1.1,fill:"#fff"},eyes);
+  el("circle",{cx:8.6,cy:-5.6,r:1.1,fill:"#fff"},eyes);
+  el("ellipse",{cx:-14,cy:2,rx:3.4,ry:2.2,fill:"#ff9d9d",opacity:".5"},headTilt);
+  el("ellipse",{cx:14,cy:2,rx:3.4,ry:2.2,fill:"#ff9d9d",opacity:".5"},headTilt);
+  el("path",{d:"M-4,6 q4,4 8,0",stroke:"#c9556b","stroke-width":2.2,fill:"none","stroke-linecap":"round"},headTilt);
+  G.head=head; G.headTilt=headTilt; G.hairBack=hairBack; G.hairFront=hairFront;
+
+  /* ---- 前手臂（可指向目标） ---- */
+  var armR=el("g",{id:"gArmR",transform:"rotate(14 13 -100)"},body);
+  el("path",{d:"M13,-101 C19,-86 20,-72 18,-62",stroke:"#f6c4ad","stroke-width":11,fill:"none","stroke-linecap":"round"},armR);
+  var fistR=el("g",{id:"gFist",transform:"translate(18,-58)"},armR);
+  el("circle",{cx:0,cy:0,r:7,fill:"#f6c4ad"},fistR);
+  el("path",{d:"M-4,-3 q4,-3 8,0",stroke:"#e0957a","stroke-width":1.6,fill:"none","stroke-linecap":"round"},fistR);
+  G.armR=armR; G.fistR=fistR;
+  return g;
+}
+
+/* ---------- 黑猫（配角，体型比女生小） ---------- */
+function buildCat(){
+  var g=el("g",{id:"cat"});
+  var body=el("g",{id:"catBody"},g);
+  var tail=el("path",{id:"catTail",d:"M20,-50 q28,3 26,-25 q-1,-15 -13,-16",
+    stroke:"#181325","stroke-width":8,fill:"none","stroke-linecap":"round"},body);
+  var armB=el("g",{id:"catArmB",transform:"rotate(18 -11 -56)"},body);
+  el("path",{d:"M-11,-58 q-9,14 -6,25",stroke:"#181325","stroke-width":9,fill:"none","stroke-linecap":"round"},armB);
+  el("ellipse",{cx:0,cy:-48,rx:25,ry:23,fill:"#181325"},body);
+  el("ellipse",{cx:2,cy:-43,rx:14,ry:13,fill:"#251d38"},body);
+  el("ellipse",{cx:-12,cy:-11,rx:9,ry:8,fill:"#181325"},body);
+  el("ellipse",{cx:13,cy:-11,rx:9,ry:8,fill:"#181325"},body);
+  el("ellipse",{cx:-12,cy:-5,rx:7,ry:4.6,fill:"#2e2545"},body);
+  el("ellipse",{cx:13,cy:-5,rx:7,ry:4.6,fill:"#2e2545"},body);
+  /* 猫头同样分层：head 定位，headTilt 绕头心旋转 */
+  var head=el("g",{id:"catHead",transform:"translate(0,-78)"},body);
+  var headTilt=el("g",{id:"catHeadTilt"},head);
+  el("path",{d:"M-19,-64 L-24,-92 L-4,-74 Z",fill:"#181325"},headTilt);
+  el("path",{d:"M19,-64 L24,-92 L4,-74 Z",fill:"#181325"},headTilt);
+  el("path",{d:"M-19.5,-70 L-22,-85 L-10,-75 Z",fill:"#56395e"},headTilt);
+  el("path",{d:"M19.5,-70 L22,-85 L10,-75 Z",fill:"#56395e"},headTilt);
+  el("circle",{cx:0,cy:-78,r:22,fill:"#181325"},headTilt);
+  el("path",{d:"M-10,-75 q5,-3 9,0",stroke:"#3b3054","stroke-width":2,fill:"none","stroke-linecap":"round"},headTilt);
+  var eyes=el("g",{id:"catEyes"},headTilt);
+  el("ellipse",{cx:-8,cy:-80,rx:5.8,ry:6.8,fill:"#FFF3D0"},eyes);
+  el("ellipse",{cx:8,cy:-80,rx:5.8,ry:6.8,fill:"#FFF3D0"},eyes);
+  el("circle",{cx:-7,cy:-79,r:3.3,fill:"#FFC24B"},eyes);
+  el("circle",{cx:9,cy:-79,r:3.3,fill:"#FFC24B"},eyes);
+  el("circle",{cx:-5.7,cy:-80.6,r:1.3,fill:"#fff"},eyes);
+  el("circle",{cx:10.3,cy:-80.6,r:1.3,fill:"#fff"},eyes);
+  el("path",{d:"M-3.5,-70 h7 l-3.5,3.5 z",fill:"#FF8FA3"},headTilt);
+  el("path",{d:"M0,-66.5 q-4,5 -8,1.2 M0,-66.5 q4,5 8,1.2",stroke:"#0f0b1c","stroke-width":1.9,fill:"none","stroke-linecap":"round"},headTilt);
+  [-1,1].forEach(function(s){
+    el("path",{d:"M"+(s*10)+" -70 l"+(s*15)+" -2.5 M"+(s*10)+" -68 l"+(s*15)+" 2",
+      stroke:"#5c4f7b","stroke-width":1.4,fill:"none","stroke-linecap":"round"},headTilt);
+  });
+  var armF=el("g",{id:"catArmF",transform:"rotate(14 13 -56)"},body);
+  el("path",{d:"M13,-58 q11,13 10,27",stroke:"#181325","stroke-width":10,fill:"none","stroke-linecap":"round"},armF);
+  var catFist=el("g",{id:"catFist",transform:"translate(23,-30)"},armF);
+  el("circle",{cx:0,cy:0,r:7.2,fill:"#20192f"},catFist);
+  el("path",{d:"M-4,-3 q4,4 8,0",stroke:"#56395e","stroke-width":1.7,fill:"none","stroke-linecap":"round"},catFist);
+  /* 脖子上的领结：初始隐藏，玩家亲手戴上后才显示，并一路带到蛋糕出场 */
+  var bowTie=el("g",{id:"catBow",display:"none",transform:"translate(0,-56)"},body);
+  el("path",{d:"M0,0 C-7,-10 -24,-11 -25,-2 C-26,5 -14,8 0,4 C14,8 26,5 25,-2 C24,-11 7,-10 0,0 Z",
+    fill:"#FF6FA5",stroke:"#C24E7C","stroke-width":1.7},bowTie);
+  el("circle",{cx:0,cy:1,r:3.4,fill:"#FFB0CB"},bowTie);
+  C.tail=tail; C.armF=armF; C.armB=armB; C.head=head; C.headTilt=headTilt; C.fist=catFist; C.eyes=eyes;
+  C.body=body; C.bow=bowTie;
+  return g;
+}
+
+/* ---------- 岩点筐 ---------- */
+/* 岩点直接摆在她站立位置的两侧、贴近脚边地面，不再放木架底座。
+   托盘挂在 camG 里、跟随她的世界坐标；TRAY_DY 是岩点圆心相对站位的
+   垂直偏移（负值=在脚边略高处，最下方的形状刚好落到地面）。 */
+var TRAY_DY=-44;
+function buildTray(){
+  trayG.innerHTML="";
+  var g=trayG;
+  var y=TRAY_Y;
+  ORDER.forEach(function(k,i){
+    var node=el("g",{transform:"translate("+trayX(i)+","+y+")",cursor:"pointer"},g);
+    /* 选中环：点岩点后亮起，提示「已选中，去点墙上对应凹槽」 */
+    var ring=el("circle",{cx:0,cy:0,r:70,fill:"none",stroke:"#FFF3D0",
+      "stroke-width":4,"stroke-dasharray":"6 6",opacity:"0","pointer-events":"none"},node);
+    node.__ring=ring;
+    var bob=el("g",{class:"bob",style:"animation:bobY 2.6s "+(i*0.22).toFixed(2)+"s infinite"},node);
+    buildHold(bob,k,true);
+    el("circle",{cx:0,cy:0,r:56,fill:"transparent",style:"cursor:pointer"},node);
+    node.__type=k; node.__home=trayX(i); node.setAttribute("data-t",k);
+  });
+}
+/* 把托盘摆到女生脚边（每帧跟随，只改 translate 不重建节点）。
+   x 锚在女生正下方，左右两组岩点分别落在她两侧；全景镜头保证两端都在画内。 */
+function followTray(){
+  trayG.setAttribute("transform","translate("+(S.girlX).toFixed(1)+","+
+    (S.girlY+TRAY_DY).toFixed(1)+")");
+}
+
+/* ==========================================================================
+   岩点绘制（真实 hold 的体积感：投影 + 主体 + 抓握结构描边 + 上缘高光 + 纹理）
+   分层顺序很关键：先投影、再主体、再结构线、最后高光与纹理。
+   ========================================================================== */
+function buildHold(parent,key,big){
+  /* 手机端放大：托盘与墙上的岩点都比原来大 ~1.3 倍，
+     配合更大的透明命中圆和凹槽，点得准也看得清。 */
+  /* 岩点保持好点，但比人物（高约155）明显小一圈：墙上 1.15 / 托盘 1.45。
+     点击命中圆独立于这个缩放，不受影响。 */
+  var t=TYPES[key], s=big?1.45:1.15;
+  var g=el("g",{transform:"scale("+s+")"},parent);
+  var isPocket=(key==="pocket");
+
+  /* 1. 墙上投影：岩点凸出于墙面，光从左上，故影偏右下。
+      pocket 的洞不参与挖空（投影应是完整实心），否则洞里会漏出墙色 */
+  var shPath=HOLD_PATH[key];
+  if(isPocket)shPath=shPath.split(" Z ")[0]+" Z";
+  el("path",{d:shPath,fill:"#120d1e",opacity:".42",transform:"translate(3,6)"},g);
+
+  /* 2. 主体：左上受光的斜向渐变；pocket 用 evenodd 把洞挖穿 */
+  var body=el("path",{d:HOLD_PATH[key],fill:"url(#g_"+key+")"},g);
+  if(isPocket)body.setAttribute("fill-rule","evenodd");
+
+  /* 3. 抓握结构：内凹描边（不是色块），标示这是手能扣住的地方 */
+  if(HOLD_PATH[key+"In"]){
+    el("path",{d:HOLD_PATH[key+"In"],fill:"none",stroke:t.dark,"stroke-width":4.5,
+      opacity:".9","stroke-linecap":"round"},g);
+  }
+
+  /* 4. 外轮廓：内侧一圈暗边，把岩点和墙面分开 */
+  var stroke=el("path",{d:HOLD_PATH[key],fill:"none",stroke:t.dark,"stroke-width":2.4,opacity:".9"},g);
+  if(isPocket)stroke.setAttribute("fill-rule","evenodd");
+
+  /* 5. 轮廓左上缘的光：一道亮边，强化凸起感 */
+  if(HOLD_PATH[key+"Lip"]){
+    el("path",{d:HOLD_PATH[key+"Lip"],fill:"none",stroke:t.light,"stroke-width":3.2,
+      opacity:".9","stroke-linecap":"round"},g);
+  }
+
+  /* 6. 顶部高光 */
+  el("path",{d:"M-15,-16 C-9,-23 4,-24 10,-19",stroke:"#fff","stroke-width":4,
+    opacity:".5",fill:"none","stroke-linecap":"round"},g);
+
+  /* pocket 的洞：用 evenodd 挖穿后要补洞内暗面，让深度成立。
+   必须在纹理点之前画，否则纹理点会浮在洞里。 */
+  if(isPocket){
+    el("path",{d:"M-7,-6 C-14,-6 -18,1 -15,7 C-12,13 -4,14 1,9 C6,4 1,-6 -7,-6 Z",
+      fill:"#181022"},g);
+    el("path",{d:"M-7,-6 C-14,-6 -18,1 -15,7",fill:"none",stroke:"#080510",
+      "stroke-width":3.6,"stroke-linecap":"round"},g);
+  }
+
+  /* 抓握纹理点 */
+  var tr=seeded(key.length*77+13);
+  for(var i=0;i<5;i++){
+    var a=tr()*Math.PI*2, r=4+tr()*9;
+    el("circle",{cx:(Math.cos(a)*r).toFixed(1),cy:(Math.sin(a)*r*.7).toFixed(1),
+      r:(1+tr()*1.2).toFixed(1),fill:t.dark,opacity:".28"},g);
+  }
+  return g;
+}
+
+/* ---------- 凹陷（凹槽） ---------- */
+function buildDents(){
+  dentG.innerHTML="";dents=[];
+  SLOTS.forEach(function(sl,i){
+    var rnd=seeded(101+i*37);
+    var g=el("g",{transform:"translate("+sl.x+","+sl.y+")",opacity:"0"},dentG);
+    el("path",{d:smooth(blobPts(11,40,rnd,.88)),fill:"#251e3c",opacity:".95"},g);
+    var hole=smooth(blobPts(10,29,rnd,.84));
+    el("path",{d:hole,fill:"#0b0716"},g);
+    el("path",{d:hole,fill:"none",stroke:"#191330","stroke-width":3.4,opacity:".85"},g);
+    for(var c=0;c<5;c++){
+      var ca=c/5*Math.PI*2+rnd()*.8;
+      el("path",{d:"M"+(Math.cos(ca)*25).toFixed(1)+" "+(Math.sin(ca)*21).toFixed(1)+
+        " l"+(Math.cos(ca)*24).toFixed(1)+" "+(Math.sin(ca)*22).toFixed(1),
+        stroke:"#3d3158","stroke-width":2.4,fill:"none","stroke-linecap":"round",opacity:".65"},g);
+    }
+    /* 需要的岩点形状提示（虚线轮廓），与放大后的岩点等比例。
+       hint 自带 scale，不干扰外层 revealDent 对 d.g 的缩放动画。 */
+    var hint=el("g",{opacity:"0",transform:"scale(1.28)"},g);
+    var hs=el("path",{d:HOLD_PATH[sl.t],fill:"none",stroke:"#FFC24B","stroke-width":2.6,
+      "stroke-dasharray":"7 8"},hint);
+    if(sl.t==="pocket")hs.setAttribute("fill-rule","evenodd");
+    hs.setAttribute("class","dentOutline");
+    el("circle",{r:34,fill:"none",stroke:"#FFC24B","stroke-width":1.4,opacity:".3","stroke-dasharray":"3 9"},hint);
+    dents.push({g:g,hint:hint,hs:hs,x:sl.x,y:sl.y,t:sl.t,shown:false,filled:false,fillNode:null});
+  });
+}
+function revealDent(i){
+  var d=dents[i];if(d.shown)return;d.shown=true;
+  var g=d.g,x=SLOTS[i].x,y=SLOTS[i].y;
+  g.setAttribute("opacity","1");
+  g.setAttribute("transform","translate("+x+","+y+") scale(.15)");
+  var st=performance.now();
+  (function pop(){
+    var t=Math.min(1,(performance.now()-st)/420);
+    g.setAttribute("transform","translate("+x+","+y+") scale("+(0.15+0.85*easeOut(t)).toFixed(3)+")");
+    if(t<1)requestAnimationFrame(pop);
+    else{
+      g.setAttribute("transform","translate("+x+","+y+")");
+      d.hint.style.transition="opacity .5s";
+      d.hint.setAttribute("opacity",".55");
+    }
+  })();
+}
+
+/* ==========================================================================
+   特效
+   ========================================================================== */
+function spawnImpact(x,y,color){
+  var g=el("g",{transform:"translate("+x+","+y+")"},fxG);
+  el("circle",{r:32,fill:"none",stroke:color||"#FFD36B","stroke-width":3,opacity:".85"},g);
+  el("path",{d:"M0,-25 L7,-8 L25,-6 L11,4 L16,23 L0,13 L-16,23 L-11,4 L-25,-6 L-7,-8 Z",
+    fill:color||"#FFD36B",opacity:".95"},g);
+  var st=performance.now();
+  (function a(){
+    var t=(performance.now()-st)/380;
+    if(t>=1){g.parentNode&&g.parentNode.removeChild(g);return;}
+    var s=1+t*1.55;
+    g.setAttribute("transform","translate("+x+","+y+") scale("+s.toFixed(3)+")");
+    g.setAttribute("opacity",(1-t).toFixed(3));
+    requestAnimationFrame(a);
+  })();
+  for(var i=0;i<11;i++){
+    var ang=-Math.PI/2+(Math.random()-.5)*2.5, sp=70+Math.random()*150;
+    var c=el("circle",{cx:x,cy:y,r:1.4+Math.random()*3,fill:i%3?"#4c4172":"#7b68a0"},fxG);
+    debris(c,x,y,Math.cos(ang)*sp,Math.sin(ang)*sp-45,760);
+  }
+}
+function debris(node,x,y,vx,vy,dur){
+  var st=performance.now();
+  (function a(){
+    var t=(performance.now()-st)/dur;
+    if(t>=1){node.parentNode&&node.parentNode.removeChild(node);return;}
+    x+=vx/60;y+=vy/60;vy+=540/60;
+    node.setAttribute("cx",x.toFixed(1));node.setAttribute("cy",y.toFixed(1));
+    node.setAttribute("opacity",(1-t).toFixed(2));
+    requestAnimationFrame(a);
+  })();
+}
+function burst(x,y,color){
+  var c=el("circle",{cx:x,cy:y,r:7,fill:color||"#fff"},fxG);
+  var st=performance.now();
+  (function a(){
+    var t=(performance.now()-st)/300;
+    if(t>=1){c.parentNode&&c.parentNode.removeChild(c);return;}
+    c.setAttribute("r",(7+t*24).toFixed(1));c.setAttribute("opacity",(0.85-t*0.85).toFixed(2));
+    requestAnimationFrame(a);
+  })();
+}
+/* 音符：一人一猫互动时飘出 */
+function note(x,y,ch){
+  var g=el("g",{transform:"translate("+x+","+y+")"},fxG);
+  var tx=el("text",{x:0,y:0,"font-size":"20",fill:"#FFE9A8","text-anchor":"middle",
+    "font-family":"serif"},g);
+  tx.textContent=ch;
+  var dx=(Math.random()-.5)*30;
+  var st=performance.now();
+  (function a(){
+    var t=(performance.now()-st)/1100;
+    if(t>=1){if(g.parentNode)g.parentNode.removeChild(g);return;}
+    g.setAttribute("transform","translate("+(x+dx*t).toFixed(1)+","+(y-t*56).toFixed(1)+")");
+    g.setAttribute("opacity",(1-t*t).toFixed(2));
+    requestAnimationFrame(a);
+  })();
+}
+
+/* ==========================================================================
+   第一幕：跳舞 → 猫出现 → 一起跳 → 出拳留痕
+   ========================================================================== */
+var seq=null,seqT=0,beatT=0,beatN=0;
+
+/* ---------- 第 0 幕：黑底开场 · 拍灯唤醒小猫 ---------- */
+/* 开场只留黑底 + 灯 + 猫 + 手：藏起墙、夜空、地面和整个人物。
+   flee/chase 阶段才把女孩整个人放出来追猫；离开开场时全部复原。 */
+function setIntroScene(on){
+  var hide=[skyG,wallG,groundG,dentG,holdG,goalG,propG,trayG,afterG];
+  hide.forEach(function(nd){if(nd)nd.setAttribute("display",on?"none":"");});
+  /* 灯只属于开始页面：开场显示黑底与灯，切到墙页面后隐藏 */
+  if(introBg)introBg.setAttribute("display",on?"":"none");
+  if(introWordG)introWordG.setAttribute("display",on?"":"none");
+  if(lampG)lampG.setAttribute("display",on?"":"none");
+  if(sleepG)sleepG.setAttribute("display",on?"":"none");
+  /* 开场只看到手，不看到站着的女孩；追猫阶段再单独显示 */
+  if(girlG)girlG.setAttribute("display",on?"none":"");
+  if(on===false&&handG){handG.setAttribute("display","none");handG.setAttribute("opacity","0");}
+}
+/* 手从画面外伸进来拍一下灯：伸入 → 下拍 → 收回 */
+function patHand(){
+  if(!handG)return;
+  handG.setAttribute("display","");
+  var st=performance.now(),dur=440;
+  var x0=LAMP_X+250,x1=LAMP_X+8,y=LAMP_LIGHT_Y-34;
+  (function a(){
+    var t=(performance.now()-st)/dur;
+    if(t>=1){handG.setAttribute("opacity","0");handG.setAttribute("display","none");return;}
+    var x,dy=0;
+    if(t<0.34){var k=t/0.34;x=lerp(x0,x1,k*k);}             /* 缓入伸出 */
+    else if(t<0.5){x=x1;dy=26*Math.sin((t-0.34)/0.16*Math.PI);} /* 拍下 */
+    else{var k2=(t-0.5)/0.5;x=lerp(x1,x0,k2*k2);}          /* 收回 */
+    handG.setAttribute("opacity","1");
+    handG.setAttribute("transform","translate("+x.toFixed(1)+","+(y+dy).toFixed(1)+")");
+    requestAnimationFrame(a);
+  })();
+}
+function startLamp(){
+  S.act=LAMP;S.lampLevel=0;S.lampPhase="wait";S.lampT=0;S.lampWoke=false;
+  clearFxSmoke();   /* 清掉上一轮吹烛残留的白色烟雾，别带到新一轮墙面上 */
+  setIntroScene(true);
+  /* 用专门的蜷缩睡猫贴在灯座旁；站立猫先隐藏，醒来后再切回 */
+  S.catX=LAMP_CAT_SLEEP_X;S.catY=LAMP_CAT_SLEEP_Y;S.catFace=1;S.catVisible=false;S.catFade=1;
+  if(sleepG)sleepG.setAttribute("transform","translate("+LAMP_CAT_SLEEP_X+","+LAMP_CAT_SLEEP_Y+")");
+  var se=$("sleepShut"),oe=$("sleepOpen");
+  if(se)se.setAttribute("display","");
+  if(oe)oe.setAttribute("display","none");
+  S.girlX=LAMP_GIRL_IN_X;S.girlY=GROUND;S.pose="idle";S.armTarget=null;
+  if(C.eyes)C.eyes.setAttribute("opacity","1");
+  if(C.body)C.body.removeAttribute("transform");
+  if(C.head)C.head.setAttribute("transform","translate(0,-78)");
+  setLampLevel(0);
+  setTip("黑夜里只剩一盏灯… 点一下蘑菇灯试试",3400);
+}
+/* 拍灯：第一下微亮、第二下更亮并唤醒猫 */
+function tapLamp(){
+  if(S.act!==LAMP||S.lampPhase!=="wait")return;
+  S.lampT=0;
+  var lv=S.lampLevel+1;
+  setLampLevel(lv);
+  bumpLamp();
+  patHand();                       /* 女孩的手伸进来拍灯 */
+  SFX.press();
+  if(lv>=2){
+    /* 灯最亮：小猫醒来 */
+    S.lampPhase="wake";
+    setTapHint("",false);
+    setTip("灯亮了！小猫醒来了",2000);
+    SFX.meow();
+    if(C.eyes)C.eyes.setAttribute("opacity","1");
+    /* 睡猫睁眼，表示被吵醒（随后切回站立猫跑开） */
+    var se=$("sleepShut"),oe=$("sleepOpen");
+    if(se)se.setAttribute("display","none");
+    if(oe)oe.setAttribute("display","");
+    setTimeout(function(){if(S.act===LAMP&&S.lampPhase==="wake"){
+      S.lampPhase="flee";S.lampT=0;S.lampWoke=true;S.pose="run";S.catFace=1;
+      /* 睡猫退场、站立猫登场（已睁眼），从灯座旁窜出去 */
+      if(sleepG)sleepG.setAttribute("display","none");
+      S.catVisible=true;
+      S.catX=LAMP_CAT_SLEEP_X;S.catY=LAMP_CAT_SLEEP_Y;
+      if(C.body)C.body.removeAttribute("transform");
+      if(C.head)C.head.setAttribute("transform","translate(0,-78)");
+      setTip("小猫跑开了！",1800);
+    }},700);
+  }else{
+    setTip("再拍一下，灯会更亮",2200);
+  }
+}
+/* 灯幕每帧：flee=猫跑出画面 → chase=女孩冲进来追 → 切回墙页面 */
+function updateLamp(dt){
+  if(S.act!==LAMP)return;
+  S.lampT+=dt;
+  if(S.lampPhase==="flee"){
+    var e=easeInOut(clamp(S.lampT/1.15,0,1));
+    S.catX=lerp(LAMP_CAT_SLEEP_X,LAMP_CAT_FLEE_X,e);
+    /* 前 0.3 秒从灯座上跳到地面，之后沿地面边跑边颠 */
+    if(S.lampT<0.3)S.catY=lerp(LAMP_CAT_SLEEP_Y,GROUND,clamp(S.lampT/0.3,0,1))-Math.sin(clamp(S.lampT/0.3,0,1)*Math.PI)*22;
+    else S.catY=GROUND-Math.abs(Math.sin(S.lampT*17))*6;
+    if(S.lampT>=1.15){
+      /* 猫从灯后跑进墙：柔和落幕 → 切回墙页面 → 猫直接砸墙。
+         不再追猫、也不再跳舞；女孩要等猫砸到最后两下才跑来。 */
+      var cur=$("curtain");
+      if(cur){cur.style.transition="none";cur.style.opacity="1";setIntroScene(false);
+        void cur.offsetWidth;cur.style.transition="opacity .6s ease";cur.style.opacity="0";}
+      else setIntroScene(false);
+      S.pose="idle";S.catY=GROUND;
+      if(C.body)C.body.removeAttribute("transform");
+      if(C.head)C.head.setAttribute("transform","translate(0,-78)");
+      if(C.eyes)C.eyes.setAttribute("opacity","1");
+      S.catX=CAT_HOME.x;S.catFace=1;S.catVisible=true;S.catFade=1;
+      startPunch();
+    }
+  }
+}
+
+function startDance(){
+  S.act=DANCE;S.pose="dance";
+  setTip("有个女生在跳舞… 轻点可跳过",2800);
+  seqT=0;
+}
+function startCatIn(){
+  S.act=CATIN;S.catVisible=true;S.catX=560;
+  setTip("一只黑猫凑了过来",2400);
+  seqT=0;
+}
+function startDuet(){
+  S.act=DUET;S.pose="dance";
+  setTip("一人一猫，一起跳 · 轻点可跳过",2800);
+  seqT=0;beatT=0;beatN=0;
+}
+function startPunch(){
+  S.act=PUNCH;S.pose="idle";S.armTarget=null;
+  setTip("小猫冲向墙壁，一拳一个洞！",3000);
+  /* 女孩此时还在场外（黑底开场没有追猫、也不跳舞），先不出现；
+     等猫砸到最后两下才从左侧跑进来。 */
+  S.girlX=-140;S.girlY=GROUND;S.pose="idle";
+  if(girlG)girlG.setAttribute("display","none");
+  S.catX=CAT_HOME.x;S.catY=GROUND;S.catFace=1;S.catVisible=true;S.catFade=1;
+  if(C.body)C.body.removeAttribute("transform");
+  var steps=[];
+  for(var i=0;i<SLOTS.length;i++){
+    /* 女孩入场改为并行动画：在猫砸第 4 个洞时同时从左侧跑进，
+       不再占用 seq 的时间片，猫全程保持砸墙节奏、不停顿。 */
+    steps.push({t:"goto",i:i,by:"cat"});
+    steps.push({t:"hit",i:i,by:"cat"});
+    steps.push({t:"back",i:i,by:"cat"});
+  }
+  seq={steps:steps,idx:0,t:0,dur:0};
+  seqT=0;
+  S.girlRunStarted=false;S.girlRun=false;
+}
+/* 女孩并行跑进画面：与猫砸墙同时进行，用独立 rAF 计时，不占用砸墙 seq */
+function startGirlRunIn(){
+  if(S.girlRunStarted)return;
+  S.girlRunStarted=true;
+  if(girlG)girlG.setAttribute("display","");
+  S.girlRun=true;
+  setTip("她也跑了过来…",1600);
+  var st=performance.now(),sx=-140,ex=GIRL_HOME.x-24,dur=1000;
+  (function a(){
+    if(S.act!==PUNCH){S.girlRun=false;return;}
+    var t=clamp((performance.now()-st)/dur,0,1),e=easeInOut(t);
+    S.girlX=lerp(sx,ex,e);
+    S.girlY=GROUND-Math.abs(Math.sin(t*Math.PI*5))*9;
+    if(t<1)requestAnimationFrame(a);
+    else{S.girlRun=false;S.girlX=ex;S.girlY=GROUND;}
+  })();
+}
+function finishPunch(){
+  seq=null;
+  /* 猫打完 5 个墙洞后真的跑出画面；它离场后才轮到玩家装岩点。 */
+  setTip("小猫打完墙，跑走了…",2000);
+  runOffCat(function(){
+    if(S.act!==PUNCH)return;
+    S.pose="idle";S.armTarget=null;
+    S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+    startStory();
+  });
+}
+
+/* 猫向右跑出画面，最后才隐藏；不是原地直接消失。 */
+function runOffCat(cb){
+  S.pose="idle";S.catFace=1;S.catVisible=true;
+  C.armF.setAttribute("transform","rotate(14 13 -56)");
+  var st=performance.now(),sx=S.catX;
+  (function a(){
+    var t=clamp((performance.now()-st)/1200,0,1);
+    S.catX=lerp(sx,560,easeInOut(t));
+    S.catY=GROUND-Math.abs(Math.sin(t*Math.PI*6))*5;
+    S.catFade=t>.82?clamp(1-(t-.82)/.18,0,1):1;
+    if(t<1)requestAnimationFrame(a);
+    else{
+      S.catVisible=false;S.catFade=1;S.catX=560;S.catY=GROUND;
+      if(cb)cb();
+    }
+  })();
+}
+/* 阁楼版：戴领结的猫从阁楼地板这一侧（右侧）跑出画面，不再回到墙底坐标。
+   阁楼地板线为 GOAL.y，镜头焦点 GOAL.x+70，右侧出画点约 GOAL.x+330。 */
+function runOffCatAttic(cb){
+  S.pose="idle";S.catFace=1;S.catVisible=true;
+  var st=performance.now(),sx=S.catX,ex=GOAL.x+330;
+  (function a(){
+    var t=clamp((performance.now()-st)/1150,0,1);
+    S.catX=lerp(sx,ex,easeInOut(t));
+    S.catY=GOAL.y-Math.abs(Math.sin(t*Math.PI*7))*6;
+    S.catFade=t>.78?clamp(1-(t-.78)/.22,0,1):1;
+    if(t<1)requestAnimationFrame(a);
+    else{
+      S.catVisible=false;S.catFade=1;S.catX=560;S.catY=GOAL.y;
+      if(cb)cb();
+    }
+  })();
+}
+
+/* 走到某个凹陷下方 */
+function moveToSlot(i,by,dur){
+  var sl=SLOTS[i];
+  var tx=sl.x+(by==="girl"?-46:30), ty=sl.y+96;
+  var sx=by==="girl"?S.girlX:S.catX, sy=by==="girl"?S.girlY:S.catY;
+  return {t:"goto",dur:dur,from:{x:sx,y:sy},x:tx,y:ty,by:by};
+}
+function updateStory(dt){
+  if(S.act===DANCE){
+    seqT+=dt;
+    if(seqT>4.2)startCatIn();
+  }else if(S.act===CATIN){
+    seqT+=dt;
+    var k=Math.min(1,seqT/1.6);
+    S.catX=lerp(560,CAT_HOME.x,easeOut(k));
+    if(k>=1)startDuet();
+  }else if(S.act===DUET){
+    seqT+=dt;
+    beatT-=dt;
+    if(beatT<=0){
+      beatT=0.44;beatN++;
+      SFX.beat(beatN%2===0);
+      if(beatN%4===1)note(S.girlX+18,S.girlY-172,"♪");
+      if(beatN%4===3)note(S.catX+14,S.catY-124,"♫");
+    }
+    if(seqT>4.0)startPunch();
+  }else if(S.act===PUNCH&&seq){
+    updatePunchSeq(dt);
+  }
+}
+
+/* STORY 幕：按当前小关分发更新 */
+function updateStoryStage(dt){
+  if(S.phase!=="story")return;
+  if(S.step===STEP_WAND)updateWand(dt);
+  else if(S.step===STEP_SEW)updateSew(dt);
+  else if(S.step===STEP_SHOOT)updateShoot(dt);
+  else if(S.step===STEP_BOWTIE)updateBow(dt);
+  else if(S.step===STEP_RED)updateRed(dt);
+}
+function updatePunchSeq(dt){
+  if(seq.t===0){
+    var s=seq.steps[seq.idx];
+    if(!s){finishPunch();return;}
+    if(s.t==="goto"){
+      /* 猫砸第 4 个洞时，女孩同时从左侧跑进来（并行，不打断猫） */
+      if(s.i===3)startGirlRunIn();
+      var m=moveToSlot(s.i,"cat",.34);
+      seq.dur=m.dur;seq.from=m.from;seq.gx=m.x;seq.gy=m.y;seq.by="cat";
+    }else if(s.t==="hit"){
+      seq.dur=.34;
+      /* 只有猫挥拳，女生跑进来后抱臂旁观 */
+      S.pose="punchCat";
+      SFX.thud();
+      var sl=SLOTS[s.i];
+      spawnImpact(sl.x,sl.y,"#C9B6FF");
+      revealDent(s.i);
+      shake(6,.2);
+      SFX.meow();
+    }else if(s.t==="back"){
+      seq.dur=.28;seq.by="cat";
+      seq.from={x:S.catX,y:S.catY};
+      seq.gx=CAT_HOME.x;seq.gy=GROUND;
+    }
+  }
+  var s=seq.steps[seq.idx];
+  seq.t+=dt;
+  var t=clamp(seq.t/seq.dur,0,1);
+  if(s.t==="hit"){
+    S.poseT+=dt;
+    /* 猫挥拳；女孩此刻若已跑进来就抱臂旁观（girlRun 已清） */
+    var a2=t<.28?lerp(16,-142,easeOut(t/.28)):(t<.42?lerp(-142,16,(t-.28)/.14):16);
+    C.armF.setAttribute("transform","rotate("+a2.toFixed(1)+" 13 -56)");
+    S.catY=SLOTS[s.i].y+96-Math.sin(Math.min(1,t/.34)*Math.PI)*12;
+  }else{
+    var e=easeInOut(t);
+    var nx=lerp(seq.from.x,seq.gx,e), ny=lerp(seq.from.y,seq.gy,e);
+    if(s.t==="goto")ny-=Math.sin(t*Math.PI)*34;
+    S.catX=nx;S.catY=ny;   /* 砸墙 seq 现在只驱动猫；女孩跑动由 startGirlRunIn 并行处理 */
+  }
+  if(t>=1){
+    if(s.t==="hit"){S.pose="idle";C.armF.setAttribute("transform","rotate(14 13 -56)");}
+    else if(s.t==="back"){S.catY=GROUND;}
+    seq.idx++;seq.t=0;
+  }
+}
+
+/* ==========================================================================
+   插曲：五个岩点，五段小剧情
+   1 逗猫棒 —— 猫出来一下又跑开
+   2 缝纫机 —— 缝一个猫用的小领结
+   3 射击游戏 —— 打靶
+   4 戴上领结 —— 猫终于愿意留下
+   5 红色按钮 —— 猫推着生日蛋糕出现
+   ========================================================================== */
+var STORY_PROPS={};
+
+/* ---------- 剧情幕入口 ---------- */
+function startStory(){
+  S.act=STORY;S.stepDone=0;S.placed=0;
+  S.girlRun=false;
+  if(girlG)girlG.setAttribute("display","");
+  S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+  /* 安装阶段保持砸墙后的整面墙全景，女生和岩点筐都在地面。 */
+  cam.tk=OV_K;cam.tx=200-S.girlX*OV_K;cam.ty=VIEW_H*0.94-GROUND*OV_K;
+  clearProps();
+  trayG.innerHTML="";buildTray();
+  /* 关键顺序：先连续装好全部岩点，安装阶段不播放任何任务。 */
+  enterPlacement(STEP_WAND);
+}
+
+/* 玩家安装阶段：猫已离场，墙上只有凹陷，脚边岩点可立即点击。
+   五个岩点全部装完才开始攀爬；安装期间绝不播放任务插曲。 */
+function enterPlacement(n){
+  n=clamp(n,0,SLOTS.length-1);
+  S.act=STORY;S.phase="place";S.step=n;S.pickReady=1;
+  clearProps();
+  clearSelection();
+  S.pose="idle";S.armTarget=null;
+  S.wandHits=0;S.wandT=0;S.catPeek=0;
+  S.sewT=0;S.sewProg=0;S.sewStitch=0;S.sewDone=false;
+  S.shootScore=0;S.shootShots=0;S.shootHit=0;
+  S.bowOn=0;S.bowPos=null;S.bowPlaced=false;S.dragBow=false;S.bowHeld=false;
+  S.redPress=0;S.cakeOut=0;
+  S.catVisible=false;S.catFade=1;S.catX=560;S.catY=GROUND;
+  /* 只更换目标凹槽，不移动女生；五次安装始终站在地面。 */
+  S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+  trayG.setAttribute("class","shown");
+  setTip("先点脚边岩点选中，再点墙上同形状的凹槽装上去",3600);
+}
+
+/* 攀爬任务的站位：**事件跟着岩点走**。
+   五个岩点在墙上自下而上（y 1560→520）。女生先装好全部岩点，
+   攀爬到达某个岩点时才触发对应任务，并停在岩点下方互动。
+   站位比岩点低 175：岩点落在她头顶略上方，抬手的动作对得上；
+   道具在胸腹高度（手持），两者不打架。 */
+function stepStageY(i){ return SLOTS[i].y+175; }
+function stepStageX(i){ return clamp(SLOTS[i].x-64,56,96); }
+/* 攀爬抓点的站位：站在岩点正下方偏左，手扶住岩点、下一发光点在头顶。
+   与任务站位的区别在于更靠近岩点竖直线，读起来像在墙上换手，而不是站在地上。 */
+function climbHoldY(i){ return SLOTS[i].y+78; }
+/* 女孩攀爬时站在岩点略内侧（朝墙中心偏 18），随各岩点 x 左右腾挪 */
+function climbHoldX(i){
+  var cx=SLOTS[i].x, inward=cx<200?18:-18;
+  return clamp(cx+inward,WALL_L+70,WALL_R-70);
+}
+
+function enterStep(n){
+  n=clamp(n,0,SLOTS.length-1);
+  /* 从攀岩幕切入任务：act 切到 STORY 后，攀爬位移与倒计时自然暂停。 */
+  S.act=STORY;S.step=n;S.phase="story";S.pickReady=0;
+  S.gripping=false;S.gripT=0;
+  clearProps();
+  clearSelection();
+  S.pose="idle";S.armTarget=null;
+  S.wandHits=0;S.wandT=0;S.catPeek=0;
+  S.sewT=0;S.sewProg=0;S.sewStitch=0;S.sewDone=false;
+  S.shootScore=0;S.shootShots=0;S.shootHit=0;
+  S.bowOn=0;S.bowPos=null;S.bowPlaced=false;S.dragBow=false;S.bowHeld=false;
+  S.redPress=0;S.cakeOut=0;
+  /* 默认把猫收走：只有系领结/红按钮两关会再放它出来。
+     不显式关掉的话，逗猫棒那关淡出到一半的猫会停在屏幕上。 */
+  S.catVisible=false;S.catFade=1;S.catX=560;S.catY=S.girlY;
+  S.girlX=stepStageX(n);S.girlY=stepStageY(n);
+
+  if(n===STEP_WAND){
+    setTip("逗猫棒！晃三下逗猫棒",3600);
+    buildWandProp();
+  }else if(n===STEP_SEW){
+    setTip("一台缝纫机 · 按住缝纫机，缝好领结",3600);
+    buildSewProp();
+  }else if(n===STEP_SHOOT){
+    setTip("一台电脑 · 打掉三个靶子",3400);
+    buildShootProp();
+  }else if(n===STEP_BOWTIE){
+    setTip("给它戴上领结 · 把领结拖到猫脖子上",3600);
+    S.catVisible=true;S.catFade=1;S.catFace=-1;
+    S.catX=S.girlX+104;S.catY=stepStageY(n);
+    buildBowProp();
+  }else if(n===STEP_RED){
+    setTip("一个红色按钮 · 按下红色按钮",3400);
+    S.catVisible=true;S.catFade=1;S.catFace=-1;
+    S.catX=S.girlX+104;S.catY=stepStageY(n);
+    buildRedProp();
+  }
+  /* 全部岩点已经装好，任务期间岩点筐保持收起。 */
+  trayG.setAttribute("class","stowed");
+}
+
+/* 当前岩点任务完成：回到原攀爬进度，而不是重装岩点或从地面重来。
+   带令牌：延迟回调只在同一关、同一完成数时生效，避免旧定时器串关。 */
+function completeStepAt(n){
+  if(S.act!==STORY||S.step!==n||S.phase!=="story")return;
+  completeStep();
+}
+function completeStep(){
+  if(S.act!==STORY||S.phase!=="story")return;
+  var atStep=S.step;
+  S.phase="taskDone";S.stepDone=atStep+1;
+  S.pose="cheer";SFX.cheer();setTapHint("",false);
+  var atDone=S.stepDone;
+  setTip(atDone>=SLOTS.length?"蛋糕送到了，继续爬到终点！":"任务完成，继续向上爬！",1800);
+  setTimeout(function(){
+    if(S.act!==STORY||S.phase!=="taskDone"||S.step!==atStep||S.stepDone!==atDone)return;
+    resumeClimb(atStep);
+  },700);
+}
+/* 任务后停在当前岩点，保留剩余时间与体力，等待玩家主动抓下一点。 */
+function resumeClimb(n){
+  clearProps();
+  S.act=CLIMB;S.phase="climb";S.step=-1;S.pickReady=0;
+  S.gripping=false;S.gripT=0;S.slipT=0;S.reached=false;
+  S.climbTarget=-1;S.climbGoal=false;S.climbT=0;S.climbFrom=null;S.climbTo=null;
+  S.girlY=stepStageY(n);S.girlX=stepStageX(n);S.pose="idle";S.armTarget=null;
+  S.catVisible=false;S.catFade=1;
+  trayG.setAttribute("class","stowed");
+  $("timerRow").classList.add("on");
+  setTip(n+1>=SLOTS.length?"点红色终点 · 完成登顶":"点上方发光岩点 · 继续向上",2000);
+}
+
+/* 把第 i 个岩点装到墙上（自动，不需要拖） */
+function placeHold(i){
+  var d=dents[i],sl=SLOTS[i];
+  if(d.filled)return;
+  d.filled=true;S.placed++;
+  var wrap=el("g",{transform:"translate("+sl.x+","+sl.y+")"},holdG);
+  buildHold(wrap,d.t,false);
+  wrap.setAttribute("transform","translate("+sl.x+","+sl.y+") scale(.4)");
+  var st=performance.now();
+  (function pop(){
+    var t=clamp((performance.now()-st)/340,0,1);
+    wrap.setAttribute("transform","translate("+sl.x+","+sl.y+") scale("+(0.4+0.60*easeOut(t)).toFixed(3)+")");
+    if(t<1)requestAnimationFrame(pop);
+  })();
+  d.hint.style.transition="opacity .3s";
+  d.hint.setAttribute("opacity","0");
+  d.fillNode=wrap;
+  burst(sl.x,sl.y,"#fff");
+  SFX.place();
+  note(sl.x,sl.y-40,"✦");
+}
+
+/* ---------- 清空道具层 ---------- */
+function clearProps(){
+  if(propG)propG.innerHTML="";
+  if(uiG)uiG.innerHTML="";
+  /* 逗猫棒挂在 girlG 下（要随手移动），得单独清 */
+  if(girlG){var w=document.getElementById("wandProp");if(w)w.parentNode.removeChild(w);}
+  STORY_PROPS={};
+}
+
+/* ==========================================================================
+   道具 1：逗猫棒
+   ========================================================================== */
+function buildWandProp(){
+  clearProps();
+  /* 逗猫棒是「握在女生手里」的道具，必须挂在 girlG 下才能随手移动；
+     放进 propG（世界空间）会固定在原点，且不随角色走。 */
+  var g=el("g",{id:"wandProp"},girlG);
+  /* 杆 + 绳 + 羽毛球。原点在肩部（右手） */
+  var wg=el("g",{id:"wandArm",transform:"translate(13,-100)"},g);
+  el("path",{d:"M0,0 L34,-16",stroke:"#8b6b45","stroke-width":5,fill:"none","stroke-linecap":"round"},wg);
+  el("path",{d:"M34,-16 q10,-6 18,-2",stroke:"#5c4f7b","stroke-width":2,fill:"none"},wg);
+  var feather=el("g",{id:"wandFeather",transform:"translate(52,-18)"},wg);
+  el("circle",{cx:0,cy:0,r:7,fill:"#FF6FA5"},feather);
+  el("circle",{cx:-1,cy:-1,r:2.4,fill:"#FFD0E0",opacity:".8"},feather);
+  for(var i=0;i<5;i++){
+    var a=-2.5+i*0.5;
+    el("path",{d:"M0,0 q"+(Math.cos(a)*13).toFixed(1)+","+(Math.sin(a)*13).toFixed(1)+
+      " "+(Math.cos(a)*20).toFixed(1)+","+(Math.sin(a)*20).toFixed(1),
+      stroke:"#FF9DC0","stroke-width":2.2,fill:"none","stroke-linecap":"round",opacity:".8"},feather);
+  }
+  STORY_PROPS.wand=wg;
+  STORY_PROPS.feather=feather;
+  /* 猫的藏身角落：一个小纸箱 */
+  var box=el("g",{id:"peekBox",transform:"translate("+(S.girlX+116)+","+(S.girlY-4)+")"},propG);
+  el("path",{d:"M-40,0 L-30,-38 L30,-38 L40,0 Z",fill:"#6b4f37"},box);
+  el("path",{d:"M-30,-38 L30,-38 L24,-30 L-24,-30 Z",fill:"#8a6647"},box);
+  el("path",{d:"M-40,0 L40,0 L40,6 L-40,6 Z",fill:"#4a3524"},box);
+  STORY_PROPS.box=box;
+}
+function updateWand(dt){
+  var w=STORY_PROPS.wand, f=STORY_PROPS.feather;
+  if(!w)return;
+  if(S.wandT>0){
+    S.wandT-=dt;
+    /* 晃动逗猫棒（原点固定在肩部 13,-100，与 buildWandProp 一致） */
+    var k=Math.sin(now()*17)*16;
+    w.setAttribute("transform","translate(13,-100) rotate("+k.toFixed(1)+")");
+    if(f)f.setAttribute("transform","translate(52,-18) rotate("+(k*1.4).toFixed(1)+")");
+    if(S.wandT<=0){
+      w.setAttribute("transform","translate(13,-100)");
+      if(f)f.setAttribute("transform","translate(52,-18)");
+    }
+  }
+  /* 猫探一下又跑掉 */
+  if(S.catPeek>0){
+    S.catPeek-=dt;
+    var t=1-clamp(S.catPeek/1.2,0,1);
+    if(S.catPeek>0){
+      S.catVisible=true;S.catFade=1;S.catFace=-1;
+      S.catX=S.girlX+116+Math.sin(t*Math.PI)*-16;
+      S.catY=S.girlY;
+      if(S.catFade>0.2)SFX.meow();
+    }else{
+      /* 跑掉：淡出并移动到画面外 */
+      S.catFade=clamp(S.catFade-dt*3.2,0,1);
+      S.catX-=260*dt;
+      if(S.catFade<=0.02){
+        S.catVisible=false;S.catFade=1;S.catX=560;
+      }
+    }
+  }
+}
+function tapWand(){
+  if(S.catPeek>0)return;          /* 猫已经探出来了，不再响应 */
+  if(S.wandT>0)return;            /* 正在晃动中，忽略连点 */
+  S.wandT=.5;SFX.pick();
+  S.wandHits++;
+  note(S.girlX+72,S.girlY-160,"✧");
+  if(S.wandHits>=3){
+    setTip("猫又跑掉了…",2200);
+    setTapHint("",false);
+    S.catPeek=1.2;SFX.meow();
+    /* 等猫彻底跑掉再装岩点：catPeek 1.2s + 淡出约 0.3s，
+       1.9s 后才推进下一关，中途别切场景把猫截停。 */
+    var wn=S.step;setTimeout(function(){completeStepAt(wn);},1900);
+  }else{
+    setTip("再晃一下…",1200);
+  }
+}
+
+/* ==========================================================================
+   道具 2：缝纫机 + 猫用小领结
+   ========================================================================== */
+function buildSewProp(){
+  clearProps();
+  /* 偏移量要考虑 STORY_K=1.35 的放大：
+     桌子从 x=-58 延伸到 142，若整体右移 96，右缘会到 girlX+238，
+     乘 1.35 后超出 viewBox。故只右移 62，桌子右缘落在 girlX+204。 */
+  var g=el("g",{id:"sewProp",transform:"translate("+(S.girlX+62)+","+S.girlY+")"},propG);
+  /* 小桌子（要放得下右侧的布料与领结，故加宽到 200） */
+  el("rect",{x:-58,y:-56,width:200,height:9,rx:3,fill:"#7a5a3c"},g);
+  el("path",{d:"M-50,-47 v47 M132,-47 v47",stroke:"#5d452c","stroke-width":6,fill:"none"},g);
+  /* 缝纫机机身（靠桌子左端，右侧留给布料和领结） */
+  el("path",{d:"M-50,-56 L-50,-92 C-50,-104 -38,-110 -16,-110 L26,-110 L26,-96 L14,-96 "+
+    "C2,-96 -2,-92 -2,-84 L-2,-56 Z",fill:"#D98BA6"},g);
+  el("rect",{x:-22,y:-110,width:44,height:14,rx:5,fill:"#C26F8C"},g);
+  el("circle",{cx:-38,cy:-84,r:9,fill:"#FFE9A8",opacity:".9"},g);
+  /* 针与线 */
+  var nd=el("g",{id:"sewNeedle",transform:"translate(-2,-78)"},g);
+  el("path",{d:"M0,0 L0,18",stroke:"#d8d0e8","stroke-width":2},nd);
+  el("path",{d:"M-22,-8 q10,8 14,8",stroke:"#FF6FA5","stroke-width":1.6,fill:"none"},g);
+  STORY_PROPS.needle=nd;
+  /* 布料与领结轮廓：放在桌面右侧（桌子 x -58..58），
+     别放 y=0 附近的地面，那样会掉到桌子下方看不见。 */
+  var bx=78,by=-44;
+  el("rect",{x:bx-46,y:by-20,width:92,height:46,rx:4,fill:"#3d3450",
+    stroke:"#4e4468","stroke-width":1.5},g);
+  var bow=el("g",{id:"bowOutline",transform:"translate("+bx+","+by+")"},g);
+  var bp=el("path",{d:BOW_PATH,fill:"rgba(255,255,255,.06)",stroke:"#FFC24B",
+    "stroke-width":2.4,"stroke-dasharray":"7 7",class:"sewLine"},bow);
+  STORY_PROPS.bowLine=bp;
+  /* 已缝的针脚 */
+  STORY_PROPS.stitch=el("g",{id:"sewStitch",transform:"translate("+bx+","+by+")"},g);
+  S.sewProg=0;S.sewStitch=0;S.sewDone=false;
+}
+function updateSew(dt){
+  var n=STORY_PROPS.needle;
+  if(n){
+    /* 缝纫机工作时针上下 */
+    var up=Math.abs(Math.sin(now()*15))>0.5;
+    n.setAttribute("transform","translate(-2,"+(-78+(up?4:0))+")");
+  }
+  if(S.sewT>0){
+    S.sewT-=dt;
+    S.sewProg=clamp(S.sewProg+dt/1.5,0,1);
+    SFX.stitch&&SFX.stitch();
+    /* 针脚沿轮廓推进 */
+    var n2=Math.floor(S.sewProg*10);
+    if(n2>S.sewStitch){
+      S.sewStitch=n2;
+      var sg=STORY_PROPS.stitch;
+      if(sg)drawStitch(sg,n2/10);
+    }
+    if(S.sewProg>=1){
+      S.sewT=0;
+      var bp=STORY_PROPS.bowLine;
+      if(bp){bp.setAttribute("stroke-dasharray","none");bp.setAttribute("stroke","#FF6FA5");}
+      SFX.cheer();
+      setTip("领结缝好了",2000);
+      var wn=S.step;setTimeout(function(){completeStepAt(wn);},700);
+    }
+  }
+}
+/* 沿领结轮廓画针脚 */
+var STITCH_PTS=[[-26,2],[-16,-6],[-4,-2],[6,-8],[16,-2],[26,4],[4,8],[-12,8]];
+function drawStitch(g,t){
+  var idx=Math.min(STITCH_PTS.length-1,Math.floor(t*STITCH_PTS.length));
+  for(var i=0;i<=idx;i++){
+    var a=STITCH_PTS[i];
+    el("path",{d:"M"+(a[0]-4)+" "+a[1]+" L"+(a[0]+4)+" "+a[1],
+      stroke:"#FF6FA5","stroke-width":2.6,fill:"none","stroke-linecap":"round"},g);
+  }
+}
+function tapSew(){
+  if(S.sewProg>=1)return;
+  if(S.sewT<=0){S.sewT=1.5;SFX.sewStart&&SFX.sewStart();}
+}
+function releaseSew(){ /* 缝纫机是「按住」而非「点一下」 */ }
+
+/* ==========================================================================
+   道具 3：电脑 + 射击游戏
+   ========================================================================== */
+var TARGETS=[[-34,-64],[-8,-72],[26,-60],[-20,-44],[12,-46]];
+function buildShootProp(){
+  clearProps();
+  var g=el("g",{id:"shootProp",transform:"translate("+(S.girlX+78)+","+S.girlY+")"},propG);
+  /* 桌子 */
+  el("rect",{x:-64,y:-40,width:128,height:10,rx:3,fill:"#6b4f37"},g);
+  el("path",{d:"M-54,-30 v30 M54,-30 v30",stroke:"#4a3524","stroke-width":6,fill:"none"},g);
+  /* 显示器 */
+  el("rect",{x:-56,y:-124,width:112,height:82,rx:7,fill:"#2a2338"},g);
+  el("rect",{x:-48,y:-116,width:96,height:66,rx:4,fill:"#1b2b3a"},g);
+  /* 屏幕上的游戏画面：网格 + 靶子 */
+  var scr=el("g",{id:"shootScreen"},g);
+  for(var i=0;i<5;i++)
+    el("path",{d:"M-48,"+(-116+i*13)+" H48",stroke:"#24405a","stroke-width":1},scr);
+  for(var j=0;j<4;j++)
+    el("path",{d:"M"+(-48+j*24)+",-116 V-50",stroke:"#24405a","stroke-width":1},scr);
+  /* 靶子（当前只显示一个） */
+  var tg=el("g",{id:"target",opacity:"0"},scr);
+  el("circle",{cx:0,cy:0,r:15,fill:"#FF6B6B",opacity:".9"},tg);
+  el("circle",{cx:0,cy:0,r:9,fill:"#FFF3D0"},tg);
+  el("circle",{cx:0,cy:0,r:4,fill:"#FF3B5C"},tg);
+  STORY_PROPS.target=tg;
+  /* 显示器底座 */
+  el("path",{d:"M-10,-42 h20 l6,2 h-32 z",fill:"#3a3050"},g);
+  /* 分数 */
+  var sc=el("text",{id:"shootScore",x:0,y:-132,"text-anchor":"middle","font-size":"13",
+    "font-weight":"bold",fill:"#FFC24B"},g);
+  sc.textContent="0 / 3";
+  STORY_PROPS.score=sc;
+  S.shootScore=0;S.shootShots=0;S.shootHit=0;
+  /* 预置三个靶子的位置 */
+  S.shootSlots=[0,2,4];
+}
+function updateShoot(dt){
+  var tg=STORY_PROPS.target;
+  if(!tg)return;
+  if(S.shootHit>0){
+    S.shootHit-=dt;
+    if(S.shootHit<=0){
+      S.shootShots++;
+      /* 下一个靶子 */
+      if(S.shootShots<S.shootSlots.length){
+        var p=TARGETS[S.shootSlots[S.shootShots]];
+        tg.setAttribute("transform","translate("+p[0]+","+p[1]+")");
+        tg.setAttribute("opacity","1");
+      }else{
+        tg.setAttribute("opacity","0");
+      }
+    }
+  }else if(S.shootShots<S.shootSlots.length&&S.shootShots===0){
+    var p0=TARGETS[S.shootSlots[0]];
+    tg.setAttribute("transform","translate("+p0[0]+","+p0[1]+")");
+    tg.setAttribute("opacity","1");
+  }
+}
+function tapShoot(x,y){
+  var gx=S.girlX+78,gy=S.girlY;
+  /* 判断是否点在靶子上（世界坐标 → 屏幕点附近） */
+  var wx=(x-cam.x)/cam.k, wy=(y-cam.y)/cam.k;
+  if(S.shootShots>=S.shootSlots.length)return;
+  var p=TARGETS[S.shootSlots[S.shootShots]];
+  var dx=(wx-gx)-p[0], dy=(wy-gy)-p[1];
+  if(Math.sqrt(dx*dx+dy*dy)<26){
+    S.shootHit=.18;
+    SFX.pop();
+    S.shootScore++;
+    if(STORY_PROPS.score)STORY_PROPS.score.textContent=S.shootScore+" / 3";
+    if(S.shootScore>=3){
+      setTip("全中！",1800);
+      var wn=S.step;setTimeout(function(){completeStepAt(wn);},600);
+    }
+  }
+}
+function releaseShoot(){}
+
+/* ==========================================================================
+   道具 4：给小猫戴上领结
+   ========================================================================== */
+function buildBowProp(){
+  clearProps();
+  /* 领结放在 uiG（root 空间），方便拖拽不随镜头缩放 */
+  var g=el("g",{id:"bowItem",style:"cursor:pointer"},uiG);
+  el("path",{d:BOW_PATH,fill:"#FF6FA5",stroke:"#C24E7C","stroke-width":2.4,class:"bowShape"},g);
+  el("circle",{cx:0,cy:0,r:5,fill:"#FFB0CB"},g);
+  STORY_PROPS.bow=g;
+  /* 猫脖子上的目标圈：加一圈实心底色 + 虚线外环，浅色墙面上也看得清 */
+  var ring=el("g",{id:"bowRing",opacity:"0"},uiG);
+  el("circle",{cx:0,cy:0,r:30,fill:"rgba(255,194,75,.16)"},ring);
+  el("circle",{cx:0,cy:0,r:30,fill:"none",stroke:"#FFC24B","stroke-width":3.4,
+    "stroke-dasharray":"7 7"},ring);
+  el("circle",{cx:0,cy:0,r:22,fill:"none",stroke:"rgba(255,194,75,.5)","stroke-width":1.4},ring);
+  STORY_PROPS.ring=ring;
+  /* 领结初始位置：跟着女生的手（见 updateBow 的 bowHeld 分支）。
+     这里只给一个兜底值 —— buildBowProp 运行时相机还停在上一个岩点，
+     此刻用 screenPt 换算会得到错位的坐标。 */
+  S.bowHeld=true;
+  S.bowPos=screenPt(S.girlX+54,S.girlY-70);
+  S.bowOn=1;S.bowPlaced=false;S.dragBow=false;
+}
+/* 世界坐标 → uiG 局部坐标。
+   uiG 是 root 的直接子节点、自身无 transform，而 root 有 translate(rx,0)。
+   领结/虚线框都画在 uiG 里，transform 是「uiG 局部坐标」；
+   它再经 root 的 translate(rx,0) 才到 viewBox 空间。
+   因此世界点经 cam 变换得到的空间（wx*cam.k+cam.x, wy*cam.k+cam.y）
+   已经是 root 的**局部**坐标，可直接作为 uiG 局部坐标 —— 绝不能再减/加 rx，
+   否则宽屏（rx>0）时会与指向判定错位、领结看着到位却点不中。 */
+function screenPt(wx,wy){
+  return {x:wx*cam.k+cam.x, y:wy*cam.k+cam.y};
+}
+/* 猫脖子在 uiG 局部坐标的位置（世界 catX, catY-56，与 buildCat 的 catBow 一致）。
+   用 screenPt 与领结绘制走同一套换算，保证显示与判定完全对齐。 */
+function catNeckPt(){
+  return screenPt(S.catX,S.catY-56);
+}
+/* client 坐标 → uiG 局部坐标（与 screenPt 同源）。
+   svgPt 得到的是 viewBox 空间坐标，uiG 局部 = viewBox - root.translateX。 */
+function clientRootPt(cx,cy){
+  var p=svgPt({clientX:cx,clientY:cy});
+  var rt=parseFloat((root.getAttribute("transform").match(/translate\(([-\d.]+)/)||[0,0])[1])||0;
+  return {x:p.x-rt,y:p.y};
+}
+function updateBow(dt){
+  var g=STORY_PROPS.bow, ring=STORY_PROPS.ring;
+  if(!g)return;
+  if(S.bowPlaced){
+    /* 领结已戴在猫脖子上，跟随猫 */
+    var np=catNeckPt();
+    g.setAttribute("transform","translate("+np.x.toFixed(1)+","+np.y.toFixed(1)+")");
+    if(ring)ring.setAttribute("opacity","0");
+    return;
+  }
+  if(S.dragBow&&S.bowPos){
+    /* 拖拽中：领结跟随手指（轻微延迟增加手感） */
+    S.bowPos.x=lerp(S.bowPos.x,mouseSvg.x,.5);
+    S.bowPos.y=lerp(S.bowPos.y,mouseSvg.y,.5);
+  }else if(S.bowHeld){
+    /* 还没被拿起：领结一直跟着女生的手。
+       必须在每帧按当前相机重算 —— 镜头从上一个岩点缓动过来，
+       进场时算一次会停在旧位置。 */
+    var hp=screenPt(S.girlX+54,S.girlY-70);
+    S.bowPos.x=hp.x;S.bowPos.y=hp.y;
+  }
+  g.setAttribute("transform","translate("+S.bowPos.x.toFixed(1)+","+S.bowPos.y.toFixed(1)+")"+
+    (S.dragBow?" scale(1.12)":""));
+  /* 猫脖子上的目标圈 */
+  if(ring){
+    var cp=catNeckPt();
+    ring.setAttribute("transform","translate("+cp.x.toFixed(1)+","+cp.y.toFixed(1)+")");
+    ring.setAttribute("opacity",".9");
+    ring.setAttribute("class","pulse");
+  }
+}
+function tapBow(x,y){
+  if(S.bowPlaced)return;
+  /* uiG 在 root 空间内多一层 translate(clientRootPt)。
+     领结的绘制用的是 screenPt()（已含 root 偏移），
+     所以这里也要用 clientRootPt 对齐同一坐标系，不能直接用 svgPt。 */
+  var p=clientRootPt(x,y);
+  if(Math.abs(p.x-S.bowPos.x)<40&&Math.abs(p.y-S.bowPos.y)<34){
+    S.dragBow=true;S.bowHeld=false;SFX.pick();
+  }
+}
+function moveBow(x,y){ if(S.dragBow){ mouseSvg=clientRootPt(x,y); } }
+function releaseBow(x,y){
+  if(!S.dragBow)return;
+  S.dragBow=false;
+  /* 判定松手位置是否在猫脖子附近。
+     用指针位置而非 bowPos：拖拽是 lerp 跟随（带延迟），
+     松手瞬间 bowPos 可能还没完全追上指针。 */
+  var cp=catNeckPt();
+  var pt=clientRootPt(x,y);
+  /* 取「指针位置」与「领结当前位置」中更近的一个做判定。
+     拖拽是 lerp 跟随，松手瞬间 bowPos 往往比指针更贴近目标；
+     两者取近者，判定更宽容也更符合直觉。 */
+  var dPtr=Math.sqrt(Math.pow(pt.x-cp.x,2)+Math.pow(pt.y-cp.y,2));
+  var dBow=Math.sqrt(Math.pow(S.bowPos.x-cp.x,2)+Math.pow(S.bowPos.y-cp.y,2));
+  var d=Math.min(dPtr,dBow);
+  /* 判定半径 56：目标圈 r=30，留一倍余量，够宽松又不至于误判 */
+  if(d<56){
+    /* 戴上了：吸附到脖子。登顶后的新章节走 finishWear（随后猫跑开→音符），
+       旧任务关卡（已停用）仍走 completeStepAt，保留兼容。 */
+    S.bowPos.x=cp.x;S.bowPos.y=cp.y;
+    if(S.act===WEAR){finishWear();return;}
+    S.bowPlaced=true;
+    SFX.cheer();
+    SFX.meow();
+    note(S.catX,S.catY-96,"♥");
+    setTip("小猫戴上了领结",2200);
+    var wn=S.step;setTimeout(function(){completeStepAt(wn);},900);
+  }else{
+    /* 没戴上：弹回女生手边（bowHeld 会让它自动跟手） */
+    S.bowHeld=true;
+    setTip("要放在猫的脖子上哦",1600);
+  }
+}
+function releaseBow2(){}
+
+/* ==========================================================================
+   道具 5：红色按钮 + 猫咪推蛋糕出现
+   ========================================================================== */
+function buildRedProp(){
+  clearProps();
+  /* 按钮台放在女生右侧较近处；蛋糕车会停在更右（girlX+168），
+     两者留够间距，别互相压住。 */
+  var g=el("g",{id:"redProp",transform:"translate("+(S.girlX+78)+","+S.girlY+")"},propG);
+  /* 小台子 */
+  el("rect",{x:-40,y:-42,width:80,height:10,rx:3,fill:"#6b4f37"},g);
+  el("path",{d:"M-32,-32 v32 M32,-32 v32",stroke:"#4a3524","stroke-width":5,fill:"none"},g);
+  /* 红色大按钮 */
+  var btn=el("g",{id:"redBtn",transform:"translate(0,-50)",style:"cursor:pointer"},g);
+  el("ellipse",{cx:0,cy:4,rx:30,ry:12,fill:"#5a2020"},btn);
+  el("circle",{cx:0,cy:0,r:26,fill:"#E03A4E",stroke:"#9C1F30","stroke-width":3},btn);
+  el("circle",{cx:-8,cy:-8,r:8,fill:"#FF7A8F",opacity:".8"},btn);
+  el("text",{x:0,y:34,"text-anchor":"middle","font-size":"9",fill:"rgba(255,255,255,.5)",
+    "letter-spacing":"2"},btn).textContent="按 我";
+  STORY_PROPS.btn=btn;
+  /* 蛋糕小车（初始藏在右边） */
+  /* 蛋糕车与第 5 个岩点插曲同高；若锚在 GROUND，镜头升到岩点时车会落在画外。 */
+  var cart=el("g",{id:"cakeCart",transform:"translate(420,"+S.girlY+")"},propG);
+  el("rect",{x:-52,y:-26,width:104,height:8,rx:3,fill:"#8a6647"},cart);
+  el("circle",{cx:-34,cy:-10,r:7,fill:"#3a2f52"},cart);
+  el("circle",{cx:34,cy:-10,r:7,fill:"#3a2f52"},cart);
+  el("path",{d:"M-34,-26 v-12 M34,-26 v-12",stroke:"#8a6647","stroke-width":3},cart);
+  var cake=el("g",{transform:"translate(0,-104)"},cart);
+  cake.innerHTML=cakeRoseMarkup({rx:40,bodyH:38,uid:"story"});
+  el("rect",{x:-4,y:-18,width:8,height:18,rx:3,fill:"#FDF3E4"},cake);
+  el("rect",{x:-4,y:-18,width:3,height:18,fill:"#EEA6BB"},cake);
+  el("g",{class:"candleFlame",transform:"translate(0,-24)"},cake);
+  el("ellipse",{cx:0,cy:0,rx:4.5,ry:8,fill:"#FFC24B",class:"cfl"},cake);
+  STORY_PROPS.cart=cart;
+  STORY_PROPS.cake=cake;
+}
+function updateRed(dt){
+  var cart=STORY_PROPS.cart;
+  if(!cart)return;
+  if(S.cakeOut>0){
+    /* 猫推着蛋糕车进场。
+       蛋糕车的 transform 在 propG（世界空间）里，x 就是世界坐标，
+       目标点也用世界坐标算，别绕 screenToWorld 反推（会多算 root 偏移）。 */
+    S.cakeOut-=dt;
+    /* 目标点要考虑 STORY_K 放大与道具间距：
+       按钮台在 girlX+78（半宽 40，右缘 girlX+118），
+       蛋糕车半宽 52，车心至少要在 girlX+176 才不压住按钮台。 */
+    var target=S.girlX+178;
+    var cur=parseFloat(cart.getAttribute("transform").match(/translate\(([-\d.]+)/)[1]);
+    var nx=lerp(cur,target,1-Math.pow(0.006,dt));
+    cart.setAttribute("transform","translate("+nx.toFixed(1)+","+S.girlY+")");
+    /* 猫在蛋糕车右边推（脸朝左，用 catFace=-1），
+       高度跟随女生（她现在悬在墙上），别让猫掉到地面。 */
+    S.catX=clamp(nx+74,50,286);S.catY=S.girlY;
+    S.catFace=-1;S.catVisible=true;S.catFade=1;
+    if(S.cakeOut<=0){
+      /* 第 5 个岩点早已由玩家亲手装好；这里只播放蛋糕插曲并收尾。 */
+      S.cakeOut=0;
+      SFX.cheer();SFX.pop();confetti(50);
+      setTip("小猫推着蛋糕来了！",1800);
+      completeStep();
+    }
+  }
+}
+function tapRed(x,y){
+  if(S.cakeOut>0||S.redPress)return;
+  var gx=S.girlX+78,gy=S.girlY-50;
+  var wx=(x-cam.x)/cam.k, wy=(y-cam.y)/cam.k;
+  if(Math.abs(wx-gx)<34&&Math.abs(wy-gy)<34){
+    S.redPress=1;S.cakeOut=2.2;
+    SFX.pop();SFX.meow();
+    var btn=STORY_PROPS.btn;
+    if(btn)btn.setAttribute("transform","translate(0,-46)");
+    setTip("小猫推着蛋糕来了！",2600);
+  }
+}
+function releaseRed(){}
+
+/* 领结路径（复用） */
+var BOW_PATH="M0,0 C-10,-14 -38,-16 -40,-4 C-42,6 -22,12 0,6 C22,12 42,6 40,-4 C38,-16 10,-14 0,0 Z";
+
+/* ==========================================================================
+   第二幕：装岩点
+   ========================================================================== */
+function showTray(){
+  trayG.setAttribute("class","shown");
+  $("legend").innerHTML="";
+  $("legend").classList.add("on");
+  Object.keys(TYPES).forEach(function(k){
+    var d=document.createElement("div");d.className="lg";
+    d.innerHTML='<span class="dot" style="background:'+TYPES[k].color+'"></span>'+
+      '<b style="font-weight:500">'+TYPES[k].name+'</b>'+
+      '<span class="en">'+TYPES[k].en+'</span>';
+    d.title=TYPES[k].en+" · "+TYPES[k].desc;
+    $("legend").appendChild(d);
+  });
+}
+/* ==========================================================================
+   第二幕：点击装岩点
+   岩点摆在女生脚边的一筐里。点一下某个岩点 → 装到墙上对应的凹陷上。
+   选对：它跳进凹陷 + 彩带；选错：凹陷抖动，并高亮它该去的那一个。
+   ========================================================================== */
+/* 当前要装的凹槽（从下往上第一个还空着的） */
+function currentSlot(){
+  for(var i=0;i<dents.length;i++)if(!dents[i].filled)return i;
+  return -1;
+}
+/* 命中测试：托盘在 camG（世界空间），要把点击点换算到世界坐标 */
+function trayNodeAt(e){
+  var p=svgPt(e);
+  var rt=parseFloat((root.getAttribute("transform").match(/translate\(([-\d.]+)/)||[0,0])[1])||0;
+  var w={x:(p.x-rt-cam.x)/cam.k,y:(p.y-cam.y)/cam.k};
+  var ox=S.girlX,oy=S.girlY+TRAY_DY+TRAY_Y;
+  var all=trayG.children,best=null,bd=70*70;
+  for(var i=0;i<all.length;i++){
+    var n=all[i];
+    if(!n.__type)continue;
+    /* n.__home 是托盘内偏移，必须再加托盘跟随女生的世界坐标。 */
+    var dx=ox+n.__home-w.x,dy=oy-w.y,dd=dx*dx+dy*dy;
+    if(dd<bd){bd=dd;best=n;}
+  }
+  return best;
+}
+/* ========== 两步安装：先选岩点 → 再点墙上同形状凹槽才装好 ========== */
+/* 清除选中态：所有岩点环熄灭，凹槽提示复位 */
+function clearSelection(){
+  S.selType=null;
+  var all=trayNodesOf();
+  for(var i=0;i<all.length;i++){
+    var n=all[i];
+    if(n.__ring)n.__ring.setAttribute("opacity","0");
+    n.setAttribute("opacity","1");
+  }
+  for(var j=0;j<dents.length;j++){
+    if(!dents[j].filled&&dents[j].hint)dents[j].hint.setAttribute("opacity",".55");
+  }
+}
+/* 第一步：点脚边岩点 → 只选中（再点同一个取消），不安装 */
+function tapTrayHold(node){
+  if(S.act!==STORY||S.phase!=="place")return;
+  if(!S.pickReady)return;
+  var type=node.__type;
+  if(S.selType===type){clearSelection();setTip("已取消选择",900);return;}
+  clearSelection();
+  S.selType=type;
+  if(node.__ring)node.__ring.setAttribute("opacity","1");
+  /* 让"同形状凹槽"的虚线轮廓脉动一下，明确告诉玩家该点墙上哪里 */
+  for(var i=0;i<dents.length;i++){
+    if(dents[i].filled||dents[i].t!==type)continue;
+    var d=dents[i],st=performance.now();
+    (function pulse(){
+      var t=(performance.now()-st)/1000;
+      if(S.selType!==type||d.filled)return;
+      d.hint.setAttribute("opacity",(0.55+Math.sin(t*9)*0.4).toFixed(2));
+      requestAnimationFrame(pulse);
+    })();
+  }
+  if(SFX.pop)SFX.pop();
+  setTip("已选中「"+TYPES[type].name+"」· 点墙上同形状的凹槽装上去",2400);
+}
+/* 命中测试：点击是否落在某个墙上凹槽（世界坐标，放大命中半径） */
+function dentAt(e){
+  var w=climbWorldPt(e),best=-1,bd=86*86;
+  for(var i=0;i<dents.length;i++){
+    var d=dents[i];if(d.filled)continue;
+    var dx=d.x-w.x,dy=d.y-w.y,dd=dx*dx+dy*dy;
+    if(dd<bd){bd=dd;best=i;}
+  }
+  return best;
+}
+/* 第二步：点墙上凹槽。选中了同形状岩点才装上，否则给错误反馈 */
+function tapDent(idx){
+  if(S.act!==STORY||S.phase!=="place"||!S.pickReady)return;
+  var d=dents[idx];if(!d||d.filled)return;
+  if(!S.selType){setTip("先点脚边的岩点选中它，再点凹槽",1600);SFX.wrong();return;}
+  if(d.t!==S.selType){
+    /* 选错：不消耗岩点、不清除选中，凹槽抖动并提示正确形状 */
+    wrongFx(idx,d.t);SFX.wrong();
+    setTip("形状对不上：这个凹槽要「"+TYPES[d.t].name+"」",1800);
+    return;
+  }
+  /* 配对成功 */
+  var type=S.selType,node=null,all=trayNodesOf();
+  for(var i=0;i<all.length;i++)if(all[i].__type===type){node=all[i];break;}
+  if(!node)return;
+  clearSelection();
+  setTapHint("",false);
+  S.pickReady=0;S.phase="transition";S.armTarget={x:d.x,y:d.y};
+  fillSlot(idx,node);
+  var atPlaced=S.placed;
+  setTimeout(function(){
+    if(S.act!==STORY||S.phase!=="transition")return;
+    if(S.placed!==atPlaced)return;
+    if(atPlaced>=SLOTS.length){clearProps();startClimb();}
+    else{
+      S.phase="place";S.pickReady=1;
+      setTip("装好 "+S.placed+" / "+SLOTS.length+" · 选下一个岩点",1800);
+    }
+  },780);
+}
+/* 凹槽抖动 + 正确位置脉动提示 */
+function wrongFx(idx,type){
+  var d=dents[idx],x=SLOTS[idx].x,y=SLOTS[idx].y;
+  var st=performance.now();
+  (function sh(){
+    var t=Math.min(1,(performance.now()-st)/340);
+    d.g.setAttribute("transform","translate("+(x+Math.sin(t*36)*8).toFixed(1)+","+y+")");
+    if(t<1)requestAnimationFrame(sh);
+    else{
+      d.g.setAttribute("transform","translate("+x+","+y+")");
+      d.hint.setAttribute("opacity",".55");
+      d.hs.setAttribute("stroke","#FFC24B");
+    }
+  })();
+  var ci=-1;
+  for(var i=0;i<SLOTS.length;i++)if(SLOTS[i].t===type)ci=i;
+  if(ci<0)return;
+  var cd=dents[ci],st2=performance.now();
+  (function pd(){
+    var t=(performance.now()-st2)/1000;
+    if(t>=1){cd.hint.setAttribute("opacity",".55");cd.hs.setAttribute("stroke","#FFC24B");return;}
+    cd.hint.setAttribute("opacity",(0.55+Math.sin(t*11)*0.4).toFixed(2));
+    requestAnimationFrame(pd);
+  })();
+}
+/* 装上：岩点从脚边跳进凹陷 */
+function fillSlot(idx,node){
+  var d=dents[idx],sl=SLOTS[idx];
+  d.filled=true;S.placed++;
+  SFX.place();
+  /* 攀爬时仅给下一个可抓岩点显示光圈，光圈不遮挡点击与岩点形状。 */
+  d.nextHalo=el("circle",{cx:sl.x,cy:sl.y,r:60,fill:"none",stroke:"#FFF3D0",
+    "stroke-width":3.6,"stroke-dasharray":"5 5",opacity:"0","pointer-events":"none"},holdG);
+  var wrap=el("g",{transform:"translate("+sl.x+","+sl.y+")"},holdG);
+  buildHold(wrap,d.t,false);
+  wrap.setAttribute("transform","translate("+sl.x+","+sl.y+") scale(.4)");
+  var st=performance.now();
+  (function pop(){
+    var t=Math.min(1,(performance.now()-st)/340);
+    var s=t<1?(0.4+0.60*easeOut(t)):1;
+    wrap.setAttribute("transform","translate("+sl.x+","+sl.y+") scale("+s.toFixed(3)+")");
+    if(t<1)requestAnimationFrame(pop);
+  })();
+  d.hint.style.transition="opacity .3s";
+  d.hint.setAttribute("opacity","0");
+  d.fillNode=wrap;
+  burst(sl.x,sl.y,"#fff");
+  SFX.cheer();
+  if(node&&node.parentNode)node.parentNode.removeChild(node);
+  setTip("装好 "+S.placed+" / "+SLOTS.length,1200);
+}
+
+/* ==========================================================================
+   第三幕：攀岩
+   ========================================================================== */
+function startClimb(){
+  clearBlessings();   /* 攀岩祝福语代际 +1，重开时不残留上一轮气泡 */
+  S.act=CLIMB;S.phase="climb";S.step=-1;S.stepDone=0;S.pickReady=0;
+  S.girlY=GROUND;S.girlX=206;S.stamina=1;S.timeLeft=HOLD_TIME;
+  S.climbElapsed=0;                       /* 展示计时：从 0 开始正计时 */
+  $("tnum").textContent="0.00";
+  $("tnum").classList.remove("low");
+  $("barIn").style.width="0%";
+  S.gripping=false;S.gripT=0;S.slipT=0;S.reached=false;
+  S.climbTarget=-1;S.climbGoal=false;S.climbT=0;S.climbFrom=null;S.climbTo=null;
+  SLOTS.forEach(function(s){s._got=false;});
+  clearProps();
+  cam.tk=1;
+  $("timerRow").classList.add("on");
+  /* 攀岩时镜头跟着女生上移，猫会落到画面外；
+     把它折进「已跳过」状态，避免半截身体挂在屏幕边缘 */
+  S.catVisible=false;
+  /* 岩点已全部装进墙里，托盘与图例在攀岩幕收起 */
+  trayG.setAttribute("class","stowed");
+  $("legend").classList.remove("on");
+  setTip("点击上方发光岩点 · 抓住向上，一步一步往上爬",3200);
+}
+function routeX(y){
+  var pts=[{y:GROUND,x:206}];
+  SLOTS.forEach(function(s){pts.push({y:s.y,x:s.x});});
+  pts.push({y:WIN_Y,x:GOAL.x});
+  pts.sort(function(a,b){return a.y-b.y;});
+  for(var i=0;i<pts.length-1;i++){
+    var a=pts[i],b=pts[i+1];
+    if(y>=a.y&&y<=b.y)return lerp(a.x,b.x,(y-a.y)/(b.y-a.y));
+  }
+  return y<pts[0].y?pts[0].x:pts[pts.length-1].x;
+}
+function beginClimbMove(i){
+  if(S.act!==CLIMB||S.climbTarget>=0||S.climbGoal||S.reached)return;
+  if(i!==S.stepDone||i<0||i>=SLOTS.length)return;
+  var sl=SLOTS[i];
+  S.climbTarget=i;S.climbT=0;S.climbDur=.62;
+  S.climbFrom={x:S.girlX,y:S.girlY};
+  S.climbTo={x:climbHoldX(i),y:climbHoldY(i)};
+  S.armTarget={x:sl.x,y:sl.y};
+  S.gripping=true;S.gripT=0;S.pose="climb";
+  setTapHint("",false);
+}
+function beginGoalMove(){
+  if(S.act!==CLIMB||S.stepDone<SLOTS.length||S.climbTarget>=0||S.climbGoal||S.reached)return;
+  S.climbGoal=true;S.climbT=0;S.climbDur=.7;
+  S.climbFrom={x:S.girlX,y:S.girlY};
+  S.climbTo={x:GOAL.x,y:WIN_Y};
+  S.armTarget={x:GOAL.x,y:GOAL.y};S.pose="climb";
+  setTapHint("",false);
+}
+/* 攀岩祝福语：每抓住一个岩点，就在点旁边冒出一句祝福（5 点对应 5 句）。
+   气泡上浮 + 淡出，走完自动移除；blessGen 代际保证攀岩重开时不残留。 */
+var BLESSINGS=["天天开心！","吃嘛嘛香~","美美美！！！","心想事成~","顺顺利利~"];
+var blessGen=0;
+function clearBlessings(){
+  blessGen++;
+  if(!camG)return;
+  var olds=camG.querySelectorAll("g[data-bless]");
+  for(var i=olds.length-1;i>=0;i--)if(olds[i].parentNode)olds[i].parentNode.removeChild(olds[i]);
+}
+function showBlessing(i,x,y){
+  var gen=blessGen;
+  var side=x>GOAL.x?-1:1;                      /* 朝画面中央展开，避免祝福语出画 */
+  var bx=x+side*118;
+  /* 必须挂在 camG（世界坐标）：fxG 在 root 空间无相机变换，攀岩时相机上移，
+     前三个岩点的世界 y（1560/1300/1040）会落到屏幕外，只剩最后两个看得见。 */
+  var g=el("g",{"data-bless":"1",transform:"translate("+bx.toFixed(1)+","+y.toFixed(1)+")",
+    style:"pointer-events:none"},camG);
+  var txt=BLESSINGS[i%BLESSINGS.length];
+  /* 不要矩形框：纯卡通圆润字体 + 深色描边，在墙面上清晰又轻盈 */
+  var t=el("text",{x:0,y:0,"font-size":"25","font-weight":"900",fill:"#FFE9A8",
+    stroke:"#3a1f5e","stroke-width":6,"paint-order":"stroke","stroke-linejoin":"round",
+    "stroke-linecap":"round","text-anchor":"middle",
+    "font-family":"'Comic Sans MS','Yuanti SC','幼圆','Microsoft YaHei',cursive"},g);
+  t.textContent=txt;
+  var st=performance.now(),dur=2000;
+  (function a(){
+    if(gen!==blessGen){if(g.parentNode)g.parentNode.removeChild(g);return;}
+    var p=(performance.now()-st)/dur;
+    if(p>=1){if(g.parentNode)g.parentNode.removeChild(g);return;}
+    var rise=Math.min(1,p*2.4);                       /* 前段快速上浮 */
+    var fade=p<0.68?1:1-(p-0.68)/0.32;               /* 后段淡出 */
+    g.setAttribute("transform","translate("+bx.toFixed(1)+","+(y-rise*26).toFixed(1)+")");
+    g.setAttribute("opacity",fade.toFixed(2));
+    requestAnimationFrame(a);
+  })();
+}
+/* 抓到岩点：只给一次「抓住」反馈并计入进度，随后停在岩点上等待下一次抓握。
+   五段任务关卡暂时停用（保留 enterStep 等实现，日后可一键恢复），
+   现在攀岩是一口气逐点抓握到顶，不被弹窗打断、倒计时也不暂停。 */
+function triggerClimbStep(i){
+  var sl=SLOTS[i],t=TYPES[sl.t];
+  sl._got=true;
+  S.stepDone=i+1;
+  S.stamina=Math.min(1,S.stamina+t.stam);
+  S.girlY=climbHoldY(i);S.girlX=climbHoldX(i);
+  S.armTarget={x:sl.x,y:sl.y};
+  S.pose="climb";S.hangT=0;
+  SFX.grab();burst(sl.x,sl.y,t.light);
+  showBlessing(i,sl.x,sl.y-30);
+  setTip("抓住「"+t.name+"」 · "+(i+1)+" / "+SLOTS.length+
+    (S.stepDone>=SLOTS.length?" · 点红色终点完成登顶":" · 继续抓上方发光岩点"),1700);
+}
+function updateNextHalo(){
+  var pulse=.55+Math.sin(now()*5)*.25;
+  for(var i=0;i<dents.length;i++){
+    var h=dents[i].nextHalo;if(!h)continue;
+    var active=S.act===CLIMB&&i===S.stepDone&&S.climbTarget<0&&!S.climbGoal&&!S.reached;
+    h.setAttribute("opacity",active?pulse.toFixed(2):"0");
+    h.setAttribute("r",(60+Math.sin(now()*5)*4).toFixed(1));
+  }
+}
+function updateClimb(dt){
+  updateNextHalo();
+  if(S.girlY<=WIN_Y&&S.stepDone>=SLOTS.length){
+    if(!S.reached){
+      S.reached=true;S.pose="idle";
+      freezeClimbClock();
+      setTip("点一下红色终点 · 完成登顶",3000);
+      SFX.pop();
+    }
+    S.girlX=lerp(S.girlX,GOAL.x,0.1);
+    return;
+  }
+  S.timeLeft-=dt;                 /* 内部仍走递减：保留超时失败判定，测试链路不变 */
+  S.climbElapsed=(S.climbElapsed||0)+dt;   /* 展示用正计时：从 0 开始一直往上加 */
+  $("tnum").textContent=Math.min(S.climbElapsed,11.25).toFixed(2);
+  $("tnum").classList.remove("low");
+  $("barIn").style.width=(Math.min(S.climbElapsed,11.25)/11.25*100).toFixed(1)+"%";
+  if(S.timeLeft<=0){endFail();return;}
+
+  /* 不点不动。点击正确岩点后，才播放一段伸手抓握 → 拉身 → 蹬腿上升。 */
+  if(S.climbTarget>=0||S.climbGoal){
+    var isGoal=S.climbGoal,idx=S.climbTarget;
+    S.climbT=clamp(S.climbT+dt/S.climbDur,0,1);
+    var e=easeInOut(S.climbT);
+    S.girlX=lerp(S.climbFrom.x,S.climbTo.x,e);
+    S.girlY=lerp(S.climbFrom.y,S.climbTo.y,e)-Math.sin(S.climbT*Math.PI)*12;
+    S.pose="climb";S.wob=(S.wob||0)+dt*8;
+    if(S.climbT>=1){
+      S.girlX=S.climbTo.x;S.girlY=S.climbTo.y;
+      S.climbTarget=-1;S.climbGoal=false;S.climbFrom=null;S.climbTo=null;
+      S.gripping=false;S.gripT=0;S.armTarget=null;
+      if(isGoal){
+        S.reached=true;S.pose="idle";SFX.pop();
+        freezeClimbClock();
+        setTip("点一下红色终点 · 完成登顶",3000);
+      }else{
+        triggerClimbStep(idx);
+      }
+    }
+    return;
+  }
+
+  /* 等待下一次抓握：挂在刚抓到的岩点上（手臂扶着点），不自动上升、
+     也不因松手下滑。没有任务弹窗打断，倒计时持续走。 */
+  if(S.stepDone>0&&S.stepDone<=SLOTS.length){
+    var last=SLOTS[S.stepDone-1];
+    S.armTarget={x:last.x,y:last.y};
+    S.pose="climb";
+    S.wob=(S.wob||0)+dt*4;
+  }else{
+    S.pose="idle";S.armTarget=null;
+  }
+}
+/* 登顶定格：无论实际攀了几秒，展示计时最终都锁在 11.25 */
+function freezeClimbClock(){
+  $("tnum").textContent="11.25";
+  $("barIn").style.width="100%";
+  $("tnum").classList.remove("low");
+}
+function endFail(){
+  S.act=FAIL;SFX.slip();
+  $("failModal").classList.add("on");
+  setTapHint("",false);
+}
+
+/* ==========================================================================
+   结局
+   ========================================================================== */
+/* ==========================================================================
+   登顶后的四段互动
+   ① 缝纫机 + 布料 → 做猫咪领结
+   ② 猫咪出现 → 给猫戴领结 → 猫跑开
+   ③ 剩余布料变成音符 → 固定到五线谱 → 响起生日快乐歌
+   ④ 戴领结的猫推着生日蛋糕出现 → 结局吹蜡烛
+   ========================================================================== */
+/* 音符匹配玩法：恢复「一段五线谱 = 6 音」，依次祝你生日快乐（G G A G C B）。
+   音乐另用 FULL_SONG 播放完整四段，两条数据各司其职。 */
+var BDAY=[
+  {p:"G",f:392.00,y:-175},{p:"G",f:392.00,y:-175},{p:"A",f:440.00,y:-182.5},
+  {p:"G",f:392.00,y:-175},{p:"C",f:523.25,y:-197.5},{p:"B",f:493.88,y:-190}
+];
+/* 桌上 6 个音符的乱序摆法（0..5 的一个排列，同一音名可互换） */
+var NOTE_ORDER=[3,0,5,1,4,2];
+
+/* 完整四段生日快乐歌（25 音）：匹配只要 6 音，唱歌要唱全。
+   ①祝你生日快乐 G G A G C B　②祝你生日快乐 G G A G D C
+   ③祝你生日快乐(亲爱的) G G G E C B A　④祝你生日快乐 F F E C D C */
+var FULL_SONG=[
+  /* ① 祝你生日快乐 */
+  {f:392.00,p:"G"},{f:392.00,p:"G"},{f:440.00,p:"A"},{f:392.00,p:"G"},{f:523.25,p:"C"},{f:493.88,p:"B"},
+  /* ② 祝你生日快乐 */
+  {f:392.00,p:"G"},{f:392.00,p:"G"},{f:440.00,p:"A"},{f:392.00,p:"G"},{f:587.33,p:"D"},{f:523.25,p:"C"},
+  /* ③ 祝你生日快乐（亲爱的） */
+  {f:392.00,p:"G"},{f:392.00,p:"G"},{f:783.99,p:"G"},{f:659.25,p:"E"},{f:523.25,p:"C"},{f:493.88,p:"B"},{f:440.00,p:"A"},
+  /* ④ 祝你生日快乐 */
+  {f:349.23,p:"F"},{f:349.23,p:"F"},{f:329.63,p:"E"},{f:261.63,p:"C"},{f:293.66,p:"D"},{f:261.63,p:"C"}
+];
+var noteSlots=[],notePieces=[];
+
+function clearAfter(){
+  if(afterG)afterG.innerHTML="";
+  noteSlots=[];notePieces=[];
+}
+/* 登顶工作台镜头：以峰顶平台为基准，把角色和道具放在画面中下部 */
+function aimAfter(k,cx,anchor,wy){
+  cam.tk=k;cam.tx=200-cx*k;cam.ty=VIEW_H*anchor-wy*k;
+}
+/* 登顶后的阁楼室内：斜屋顶 + 木梁 + 圆窗月光 + 木地板。
+   画在 afterG 里覆盖住外景（夜空/墙），营造温暖的手作阁楼氛围。 */
+function buildSummit(){
+  var g=afterG, cx=GOAL.x+70, fy=GOAL.y;  /* 镜头焦点与地板线 */
+  /* 室内墙面（暖棕木板），覆盖整个可视区 */
+  el("rect",{x:cx-560,y:fy-520,width:1120,height:900,fill:"#3a2b24"},g);
+  for(var px=cx-560;px<cx+560;px+=56){
+    el("rect",{x:px+2,y:fy-520,width:52,height:900,fill:(Math.round((px-cx)/56)%2?"#412f26":"#3a2b24")},g);
+    el("line",{x1:px,y1:fy-520,x2:px,y2:fy+380,stroke:"#2c211c","stroke-width":2},g);
+  }
+  /* 斜屋顶：两片深棕斜面在中间汇成屋脊 */
+  el("path",{d:"M"+(cx-560)+" "+(fy-300)+" L"+cx+" "+(fy-560)+" L"+(cx+560)+" "+(fy-300)+
+    " Z",fill:"#2a1f1a"},g);
+  for(var r=0;r<7;r++){
+    var yy=fy-520+r*46;
+    el("line",{x1:cx-560,y1:yy+120,x2:cx+560,y2:yy+120,stroke:"#201813","stroke-width":3},g);
+  }
+  /* 屋脊与立柱木梁 */
+  el("rect",{x:cx-8,y:fy-566,width:16,height:600,fill:"#57402e"},g);
+  el("rect",{x:cx-560,y:fy-300,width:1120,height:16,fill:"#57402e"},g);
+  [[cx-250],[cx+250]].forEach(function(b){
+    el("rect",{x:b[0]-11,y:fy-300,width:22,height:690,fill:"#4b3729"},g);
+    el("rect",{x:b[0]-11,y:fy-300,width:6,height:690,fill:"#63482f"},g);
+  });
+  /* 阁楼圆窗：淡蓝月光 + 星点（不再是室外的月亮） */
+  el("circle",{cx:cx-150,cy:fy-250,r:66,fill:"#1b2740",stroke:"#6b4e34","stroke-width":10},g);
+  el("circle",{cx:cx-150,cy:fy-250,r:56,fill:"#2b3c5e"},g);
+  el("circle",{cx:cx-166,cy:fy-266,r:18,fill:"#FFF3D0",opacity:".85"},g);
+  el("circle",{cx:cx-158,cy:fy-260,r:17,fill:"#2b3c5e",opacity:".9"},g);
+  [[-30,-20],[18,-34],[34,6],[-8,28]].forEach(function(s){
+    el("circle",{cx:cx-150+s[0],cy:fy-250+s[1],r:2,fill:"#FFF3D0",opacity:".8"},g);
+  });
+  /* 窗棂 */
+  el("line",{x1:cx-150,y1:fy-316,x2:cx-150,y2:fy-184,stroke:"#6b4e34","stroke-width":6},g);
+  el("line",{x1:cx-216,y1:fy-250,x2:cx-84,y2:fy-250,stroke:"#6b4e34","stroke-width":6},g);
+  /* 木地板 */
+  el("rect",{x:cx-560,y:fy,width:1120,height:400,fill:"#6b4a30"},g);
+  for(var fx=cx-560;fx<cx+560;fx+=80){
+    el("rect",{x:fx+3,y:fy,width:74,height:400,fill:(Math.round((fx-cx)/80)%2?"#755035":"#6b4a30")},g);
+  }
+  el("rect",{x:cx-560,y:fy,width:1120,height:10,fill:"#4a3321"},g);
+  /* 工作台落脚的平台（保留一点原来峰顶的概念，但做成木台） */
+  el("rect",{x:cx-250,y:fy-10,width:500,height:20,rx:4,fill:"#5a3f2a"},g);
+  el("rect",{x:cx-250,y:fy-10,width:500,height:6,rx:3,fill:"#7a5738"},g);
+}
+
+/* ---------- ① 缝纫机制作领结 ---------- */
+function doWin(){
+  S.act=SEW;
+  $("timerRow").classList.remove("on");
+  setTapHint("",false);
+  SFX.win();
+  /* 柔和转场：先瞬间落幕盖住夜空，重建阁楼舞台后再平滑揭幕，
+     避免「夜空→室内」硬切的突兀感。 */
+  var cur=$("curtain");
+  if(cur){
+    cur.style.transition="none";
+    cur.style.opacity="1";
+  }
+  setupAttic();
+  if(cur){
+    void cur.offsetWidth;              /* 强制回流，保证从 opacity:1 开始过渡 */
+    cur.style.transition="opacity .72s ease";
+    cur.style.opacity="0";
+  }
+  setTapHint("① 点粉色布料",true);
+}
+/* 搭建阁楼舞台（doWin 与转场定时器共用）。 */
+function setupAttic(){
+  /* 显式切到阁楼舞台：无论从正常追猫流程还是测试跳转进来，
+     都保证阁楼背景显示、开场灯/睡猫/手/黑底隐藏、角色可见。 */
+  setIntroScene(false);
+  if(afterG)afterG.setAttribute("display","");
+  if(lampG)lampG.setAttribute("display","none");
+  clearProps();clearAfter();
+  S.girlX=SEW_CX-92;S.girlY=GOAL.y;S.pose="idle";S.armTarget=null;
+  S.catVisible=false;S.catFade=1;
+  S.sewStage=0;S.fabricPicked=false;S.sewT=0;S.sewProg=0;S.sewStitch=0;S.sewDone=false;
+  S.showDone=false;S.showT=0;
+  S.bowWorn=false;S.bowPlaced=false;S.dragBow=false;
+  S.paradeDone=false;S.notesPlaced=0;
+  if(C.bow)C.bow.setAttribute("display","none");
+  trayG.setAttribute("class","stowed");
+  $("legend").classList.remove("on");
+  buildSummit();
+  buildSewFinal();
+  aimAfter(1.05,GOAL.x+70,0.72,GOAL.y);
+  /* 镜头直接从终点拉近到阁楼机位，不在揭幕后还慢慢飘 —— 飘移留给遮罩内的过渡。 */
+  cam.k=cam.tk;cam.x=cam.tx;cam.y=cam.ty;
+}
+/* 缝纫道具的坐标锚：工作台中心固定在 GOAL.x+70（与阁楼镜头一致），
+   不随女孩站位漂移，分步操作时女孩走到机器前。 */
+var SEW_CX=GOAL.x+70;
+function sewMachinePt(){return {x:SEW_CX-30,y:GOAL.y-86};}
+function fabricPt(){return {x:SEW_CX+92,y:GOAL.y-46};}
+function pedalPt(){return {x:SEW_CX-6,y:GOAL.y-14};}
+function buildSewFinal(){
+  clearProps();
+  var g=el("g",{id:"sewFinal",transform:"translate("+SEW_CX+","+GOAL.y+")"},propG);
+  /* 工作台 + 木凳 */
+  el("rect",{x:-72,y:-54,width:252,height:12,rx:3,fill:"#7a5a3c"},g);
+  el("path",{d:"M-64,-42 v42 M172,-42 v42",stroke:"#5d452c","stroke-width":7,fill:"none"},g);
+  /* 缝纫机：机身 + 手轮（缝制时会转）+ 针 */
+  var m=el("g",{id:"sewMachine",style:"cursor:pointer"},g);
+  el("path",{d:"M-60,-54 L-60,-96 C-60,-110 -44,-116 -20,-116 L24,-116 L24,-100 "+
+    "L12,-100 C0,-100 -6,-94 -6,-84 L-6,-54 Z",fill:"#D98BA6"},m);
+  el("rect",{x:-28,y:-116,width:46,height:14,rx:5,fill:"#C26F8C"},m);
+  var wheel=el("g",{id:"sewWheel",transform:"translate(-52,-92)"},m);
+  el("circle",{cx:0,cy:0,r:13,fill:"#8a4f66",stroke:"#5e3446","stroke-width":2},wheel);
+  el("path",{d:"M-9,0 H9 M0,-9 V9",stroke:"#f0b9cb","stroke-width":2.4},wheel);
+  STORY_PROPS.wheel=wheel;
+  el("circle",{cx:-46,cy:-70,r:8,fill:"#FFE9A8",opacity:".9"},m);
+  el("circle",{cx:-46,cy:-70,r:3.4,fill:"#FFF3D0"},m);
+  el("path",{d:"M-6,-70 q12,9 22,0",stroke:"#FF6FA5","stroke-width":2,fill:"none"},m);
+  var nd=el("g",{id:"sewNeedleFinal",transform:"translate(-6,-90)"},m);
+  el("path",{d:"M0,0 L0,20",stroke:"#d8d0e8","stroke-width":2},nd);
+  el("circle",{cx:0,cy:22,r:2.6,fill:"#FFF3D0"},nd);
+  STORY_PROPS.needle=nd;
+  /* 踏板：缝纫机下方，第三步踩它启动 */
+  var pedal=el("g",{id:"sewPedal",transform:"translate(-6,-14)",style:"cursor:pointer"},g);
+  var pg=el("rect",{x:-24,y:-6,width:48,height:12,rx:5,fill:"#6b4a30",stroke:"#46301e","stroke-width":2},pedal);
+  el("path",{d:"M-18,0 H18",stroke:"#8a6647","stroke-width":2},pedal);
+  STORY_PROPS.pedal=pedal;
+  STORY_PROPS.pedalBg=pg;
+  el("circle",{cx:-6,cy:-14,r:34,fill:"transparent"},pedal);
+  el("circle",{cx:-20,cy:-80,r:66,fill:"transparent"},m);
+  /* 一堆布料，最上层是要缝成领结的粉色布 */
+  var f=el("g",{id:"fabricPile",transform:"translate(92,-46)",style:"cursor:pointer"},g);
+  [[-8,2,"#4f7fa8"],[6,-4,"#b9825c"],[-2,-10,"#7b6fae"]].forEach(function(c){
+    el("path",{d:"M"+(c[0]-42)+" "+(c[1]-14)+" q14,-10 26,-1 q14,-9 28,1 q16,-8 30,2 "+
+      "l-4,30 q-16,8 -30,1 q-14,8 -28,-1 q-14,7 -24,-2 z",fill:c[2],opacity:".95"},f);
+  });
+  var top=el("g",{id:"fabricTop"},f);
+  el("rect",{x:-48,y:-24,width:96,height:46,rx:5,fill:"#7d5f86",stroke:"#a588ad","stroke-width":2},top);
+  var bp=el("path",{d:BOW_PATH,fill:"rgba(255,255,255,.05)",stroke:"#FFC24B","stroke-width":2.5,
+    "stroke-dasharray":"7 7",class:"sewLine"},top);
+  STORY_PROPS.bowLine=bp;
+  STORY_PROPS.stitch=el("g",{id:"sewStitchFinal"},top);
+  var sel=el("circle",{id:"fabricSel",cx:0,cy:-2,r:62,fill:"none",stroke:"#FFD36B",
+    "stroke-width":3.5,"stroke-dasharray":"7 8",opacity:"0","pointer-events":"none"},f);
+  STORY_PROPS.fabricSel=sel;
+  el("circle",{cx:0,cy:-2,r:62,fill:"transparent"},f);
+  S.sewProg=0;S.sewStitch=0;S.sewDone=false;S.fabricPicked=false;
+}
+/* 分步真实操作：①点布料选中 → ②点缝纫机(女孩走到机器前坐下、布料上台)
+   → ③点踏板(踩下启动，轮转针动逐针缝合) → 完成。
+   兼容旧测试：afterPt('fabric'/'machine')、afterDo('sew') 仍有效。 */
+function tapSewFinal(e){
+  if(S.act!==SEW||S.sewStage===3)return;
+  var w=climbWorldPt(e),fp=fabricPt(),mp=sewMachinePt(),pp=pedalPt();
+  if(S.sewStage===0){
+    var dx=w.x-fp.x,dy=w.y-fp.y;
+    if(dx*dx+dy*dy<78*78){
+      S.fabricPicked=true;S.sewStage=1;SFX.pick();
+      if(STORY_PROPS.fabricSel)STORY_PROPS.fabricSel.setAttribute("opacity","1");
+      setTapHint("② 点缝纫机",true);
+    }else{ SFX.wrong();setTip("先点粉色布料",1800); }
+    return;
+  }
+  if(S.sewStage===1){
+    var dmx=w.x-mp.x,dmy=w.y-mp.y;
+    if(dmx*dmx+dmy*dmy<80*80){
+      S.sewStage=2;
+      if(STORY_PROPS.fabricSel)STORY_PROPS.fabricSel.setAttribute("opacity","0");
+      /* 女孩走到缝纫机前坐下操作 */
+      S.pose="sew";
+      moveGirlTo(SEW_CX-64,GOAL.y,0.6);
+      /* 布料从布堆移到机器针下 */
+      var top=$("fabricTop");
+      if(top){top.setAttribute("transform","translate(-92,34)");}
+      SFX.pick();
+      setTapHint("③ 踩踏板启动",true);
+      if(STORY_PROPS.pedalBg)STORY_PROPS.pedalBg.setAttribute("fill","#FFC24B");
+    }else{ SFX.wrong();setTip("点缝纫机，把布料放上去",1800); }
+    return;
+  }
+  if(S.sewStage===2){
+    var dpx=w.x-pp.x,dpy=w.y-pp.y;
+    if(dpx*dpx+dpy*dpy<70*70){
+      S.sewStage=3;S.sewT=1.6;S.sewStartAt=now();S.sewDone=false;
+      SFX.sewStart&&SFX.sewStart();
+      setTip("她踩着踏板，缝纫机哒哒哒…",1800);setTapHint("",false);
+      if(STORY_PROPS.pedal)STORY_PROPS.pedal.setAttribute("transform","translate(-6,-10) rotate(-8)");
+      /* 不依赖 rAF：低帧率下也能推进到下一步（sewDone 幂等守卫） */
+      setTimeout(function(){if(S.act===SEW&&!S.sewDone)finishSew();},1700);
+    }else{ SFX.wrong();setTip("踩一下缝纫机踏板（机器下方）",1800); }
+  }
+}
+/* 女孩补间走到目标站位（只改 girlX，y 保持在地板） */
+function moveGirlTo(tx,ty,dur){
+  var st=performance.now(),sx=S.girlX;
+  (function a(){
+    var t=clamp((performance.now()-st)/(dur*1000),0,1);
+    S.girlX=lerp(sx,tx,easeInOut(t));
+    if(t<1)requestAnimationFrame(a);
+  })();
+}
+function updateSewFinal(dt){
+  if(S.sewStage===3&&S.sewT>0){
+    /* 用真实经过时间算进度，避免主循环把 dt 钳到 50ms 后，
+       低帧率下缝纫被拖慢数倍（测试连跑多个机型时曾因此超时）。 */
+    S.sewProg=clamp((now()-S.sewStartAt)/1.6,0,1);
+    var n=STORY_PROPS.needle;
+    if(n)n.setAttribute("transform","translate(-6,"+(-90+(Math.abs(Math.sin(now()*18))>.5?4:0))+")");
+    var wh=STORY_PROPS.wheel;
+    if(wh)wh.setAttribute("transform","translate(-52,-92) rotate("+((now()*600)%360).toFixed(0)+")");
+    if(Math.random()<dt*9&&SFX.stitch)SFX.stitch();
+    var k=Math.floor(S.sewProg*8);
+    if(k>S.sewStitch){
+      S.sewStitch=k;
+      if(STORY_PROPS.stitch)drawStitch(STORY_PROPS.stitch,k/8);
+    }
+    if(S.sewProg>=1)finishSew();
+  }
+}
+function finishSew(){
+  if(S.act!==SEW||S.sewDone)return;   /* 幂等：定时器兜底与帧循环可能都触发 */
+  S.sewDone=true;S.sewT=0;S.sewProg=1;
+  var bp=STORY_PROPS.bowLine;
+  if(bp){bp.setAttribute("stroke-dasharray","none");bp.setAttribute("stroke","#FF6FA5");
+    bp.setAttribute("fill","rgba(255,111,165,.35)");}
+  SFX.cheer();setTip("领结缝好了！",2200);
+  setTimeout(function(){if(S.act===SEW)startWear();},900);
+}
+
+/* ---------- ② 猫咪出现 → 戴领结 → 跑开 ---------- */
+function startWear(){
+  S.act=WEAR;clearProps();
+  S.wearT=0;S.bowPlaced=false;S.dragBow=false;S.bowHeld=false;
+  S.catVisible=true;S.catFade=1;S.catFace=-1;S.catX=560;S.catY=GOAL.y;
+  buildBowProp();
+  aimAfter(1.05,GOAL.x+70,0.72,GOAL.y);
+  setTapHint("拖动领结到猫咪脖子",true);
+}
+function updateWear(dt){
+  S.wearT+=dt;
+  var p=clamp(S.wearT/1.2,0,1);
+  S.catX=lerp(560,S.girlX+108,easeOut(p));
+  S.catY=GOAL.y-Math.abs(Math.sin(p*Math.PI*6))*6;
+}
+function finishWear(){
+  S.bowPlaced=true;S.bowWorn=true;
+  if(C.bow)C.bow.removeAttribute("display");
+  if(STORY_PROPS.bow)STORY_PROPS.bow.setAttribute("display","none");
+  if(STORY_PROPS.ring)STORY_PROPS.ring.setAttribute("opacity","0");
+  SFX.cheer();SFX.meow();
+  setTip("猫咪戴上了领结！",2200);setTapHint("",false);
+  /* 先拉近镜头做领结特写（约 2 秒），再让猫跑开进入音符幕 */
+  setTimeout(function(){
+    if(S.act!==WEAR)return;
+    S.act=SHOWBOW;S.showT=0;
+    aimAfter(2.05,S.catX,0.5,S.catY-40);
+    note(S.catX,S.catY-104,"♥");
+    setTip("瞧，多精神的领结！",1800);
+  },650);
+}
+/* 领结特写：镜头已拉近，补爱心/闪光粒子，停留后进入音符幕 */
+function updateShowBow(dt){
+  S.showT+=dt;
+  if(Math.random()<dt*6){
+    var hx=S.catX+(Math.random()-.5)*90,hy=S.catY-60-Math.random()*70;
+    note(hx,hy,Math.random()<.5?"♥":"✦");
+  }
+  if(S.showT>2.0&&!S.showDone){
+    S.showDone=true;
+    /* 需求1：猫戴领结后直接从阁楼一侧跑开，不再回墙底 */
+    runOffCatAttic(function(){if(S.act===SHOWBOW)startNotes();});
+  }
+}
+
+/* ---------- ③ 布料音符 → 五线谱 → 生日快乐歌 ---------- */
+function startNotes(){
+  S.act=NOTES;clearProps();
+  S.catVisible=false;S.catFade=1;S.catX=560;
+  S.girlX=GOAL.x;S.girlY=GOAL.y;S.pose="idle";S.armTarget=null;
+  S.notesPlaced=0;S.notePick=-1;S.musicPlaying=false;
+  /* k=0.9 拉远：单段谱 + 布条整体入画；锚点 0.6 让构图重心上移，
+     女孩脚下不再留大片空地板（谱面顶部距画面上缘约一成半天空）。 */
+  aimAfter(0.9,GOAL.x+12,0.6,GOAL.y);
+  buildMusic();
+  setTapHint("点音符 → 点五线谱上相同音名的位置",true);
+}
+function noteLabelStyle(size,fill){
+  return {"text-anchor":"middle","font-size":size,"font-weight":"bold",fill:fill};
+}
+/* 波浪五线谱：5 条平行正弦曲线，替代笔直的直线。
+   cx=谱面水平中心, top=最上一条线的 y, w=半宽, amp=波幅。 */
+function waveStaff(g,cx,top,w,amp,phase){
+  for(var l=0;l<5;l++){
+    var y0=top+l*15, d="", step=8;
+    for(var xx=-w;xx<=w+step;xx+=step){
+      var x=Math.min(xx,w);
+      var y=y0+Math.sin(x/46+phase+l*0.35)*amp;
+      d+=(xx===-w?"M":"L")+(cx+x).toFixed(1)+","+y.toFixed(1);
+      if(x===w)break;
+    }
+    el("path",{d:d,fill:"none",stroke:"rgba(255,255,255,.42)","stroke-width":1.5},g);
+  }
+}
+function buildMusic(){
+  var g=el("g",{id:"musicProp"},propG),base=GOAL.y;
+  var winX=GOAL.x-80, winY=base-250;   /* 圆窗中心（与 buildSummit 一致） */
+  /* 一段五线谱：挪到圆窗右侧（参考图蓝框），与圆窗同高、向右铺开。
+     单段 6 槽，槽间距 42（> 命中直径 38），半宽 118 覆盖 5*42+余量。 */
+  var seg={cx:winX+186, top:winY-30, w:118, amp:6, phase:0.6};
+  waveStaff(g,seg.cx,seg.top,seg.w,seg.amp,seg.phase);
+  el("text",{x:seg.cx,y:seg.top-24,"font-size":"26",fill:"#FFE9A8","text-anchor":"middle"},g).textContent="♪";
+  noteSlots=[];notePieces=[];
+  /* 6 个音符槽：沿波浪线错落起伏（音名越高越靠上） */
+  BDAY.forEach(function(n,i){
+    var x=seg.cx-seg.w+18+i*42;                       /* 段内间距 42（> 命中直径 38） */
+    var wave=Math.sin((x-seg.cx)/46+seg.phase+(n.p.charCodeAt(0)%3)*0.35)*seg.amp;
+    var y=seg.top+58+(n.y+205)*0.62+wave;             /* 音高越高越靠上，幅度收在谱带内 */
+    var sg=el("g",{id:"noteSlot"+i,transform:"translate("+x.toFixed(1)+","+y.toFixed(1)+")",style:"cursor:pointer"},g);
+    el("ellipse",{cx:0,cy:0,rx:14,ry:11,fill:"rgba(255,194,75,.12)",stroke:"#FFC24B",
+      "stroke-width":2.4,"stroke-dasharray":"5 5"},sg);
+    var tx=el("text",Object.assign({x:0,y:5},noteLabelStyle(13,"#FFE9A8")),sg);tx.textContent=n.p;
+    el("circle",{cx:0,cy:0,r:22,fill:"transparent"},sg);
+    noteSlots.push({x:x,y:y,p:n.p,node:sg,filled:false,fixed:null});
+  });
+  /* 待放布条：6 个错落在女孩左右两侧地面（各 3 个），正对参考图红框区域。
+     女孩站在 GOAL.x，布条分列其左右、纵向铺在脚下到小腿高度，不遮挡身体。 */
+  NOTE_ORDER.forEach(function(mi,i){
+    var n=BDAY[mi];
+    var left=i<3, k=i%3;
+    var baseX=left?(GOAL.x-135):(GOAL.x+135);
+    var x=baseX+(k%2?14:-10)+Math.sin(k*1.7)*8;    /* 左右轻微参差 */
+    var y=base-168+k*58+(left?0:18)+Math.cos(k*1.3)*8; /* 铺在女孩两侧身高范围，不落到地板下 */
+    var pg=el("g",{id:"notePiece"+i,transform:"translate("+x.toFixed(1)+","+y.toFixed(1)+")",style:"cursor:pointer"},g);
+    var ring=el("circle",{cx:0,cy:-4,r:24,fill:"none",stroke:"#FFF3D0","stroke-width":3,
+      "stroke-dasharray":"5 6",opacity:"0","pointer-events":"none"},pg);
+    el("ellipse",{cx:0,cy:0,rx:12,ry:9,transform:"rotate(-20)",fill:"#FF8FA3",
+      stroke:"#C24E7C","stroke-width":2},pg);
+    el("path",{d:"M10,-2 L10,-30 q10,4 10,14",stroke:"#FF8FA3","stroke-width":4,
+      fill:"none","stroke-linecap":"round"},pg);
+    var t=el("text",Object.assign({x:0,y:4},noteLabelStyle(11,"#fff")),pg);t.textContent=n.p;
+    el("circle",{cx:0,cy:-10,r:24,fill:"transparent"},pg);
+    notePieces.push({melody:mi,p:n.p,x:x,y:y,node:pg,ring:ring,placed:false});
+  });
+}
+function shakeNote(sl){
+  var st=performance.now();
+  (function a(){
+    var t=Math.min(1,(performance.now()-st)/360);
+    if(!sl.node.parentNode)return;
+    sl.node.setAttribute("transform","translate("+(sl.x+Math.sin(t*36)*7).toFixed(1)+","+sl.y+")");
+    if(t<1)requestAnimationFrame(a);
+    else sl.node.setAttribute("transform","translate("+sl.x+","+sl.y+")");
+  })();
+}
+function tapNotes(e){
+  if(S.act!==NOTES||S.musicPlaying)return;
+  var w=climbWorldPt(e),i,j,dx,dy;
+  for(i=0;i<notePieces.length;i++){
+    var np=notePieces[i];if(np.placed)continue;
+    dx=np.x-w.x;dy=np.y-w.y;
+    if(dx*dx+dy*dy<20*20){
+      if(S.notePick===i){
+        S.notePick=-1;np.ring.setAttribute("opacity","0");SFX.pick();
+        setTip("已取消选择",900);
+      }else{
+        for(j=0;j<notePieces.length;j++)notePieces[j].ring.setAttribute("opacity","0");
+        S.notePick=i;np.ring.setAttribute("opacity","1");SFX.pick();
+        setTapHint("点五线谱上音名「"+np.p+"」的位置",true);
+      }
+      return;
+    }
+  }
+  for(j=0;j<noteSlots.length;j++){
+    var sl=noteSlots[j];if(sl.filled)continue;
+    dx=sl.x-w.x;dy=sl.y-w.y;
+    if(dx*dx+dy*dy<19*19){tapNoteSlot(j);return;}   /* 槽间距 42 → 半径 19 防互抢 */
+  }
+  if(S.notePick>=0){
+    notePieces[S.notePick].ring.setAttribute("opacity","0");
+    S.notePick=-1;setTapHint("点音符 → 点五线谱上相同音名的位置",true);
+  }
+}
+function tapNoteSlot(j){
+  var sl=noteSlots[j];
+  if(S.notePick<0){SFX.wrong();setTip("先点下方的音符布料",1600);return;}
+  var np=notePieces[S.notePick];
+  if(np.p!==sl.p){
+    SFX.wrong();shakeNote(sl);
+    setTip("这个位置要音名「"+sl.p+"」的音符",1800);
+    return;
+  }
+  np.placed=true;sl.filled=true;
+  np.ring.setAttribute("opacity","0");
+  np.node.setAttribute("opacity","0");
+  sl.node.setAttribute("opacity","0.22");
+  var fixed=el("g",{transform:"translate("+sl.x+","+sl.y+")"},propG);
+  el("ellipse",{cx:0,cy:0,rx:13,ry:10,transform:"rotate(-20)",fill:"#FF8FA3",
+    stroke:"#C24E7C","stroke-width":2},fixed);
+  el("path",{d:"M10,-2 L10,-32 q10,4 10,14",stroke:"#FF8FA3","stroke-width":4,
+    fill:"none","stroke-linecap":"round"},fixed);
+  var t=el("text",Object.assign({x:0,y:4},noteLabelStyle(11,"#fff")),fixed);t.textContent=sl.p;
+  sl.fixed=fixed;
+  S.notesPlaced++;S.notePick=-1;
+  tone(BDAY[j].f,.36,"triangle",.12);
+  if(S.notesPlaced>=BDAY.length)playBirthday();
+  else setTapHint("固定好 "+S.notesPlaced+" / "+BDAY.length+" · 继续点音符",true);
+}
+/* 完整四段生日歌节奏：每音 340ms，段间停 500ms，每段末音拖长。
+   25 音分四句：6 + 6 + 7 + 6。 */
+var BDAY_OFFSETS=[
+  /* ① */ 0,340,680,1020,1360,1700,
+  /* ② */ 2540,2880,3220,3560,3900,4240,
+  /* ③ */ 5080,5420,5760,6100,6440,6780,7120,
+  /* ④ */ 7960,8300,8640,8980,9320,9660
+];
+var BDAY_DURS=[];
+FULL_SONG.forEach(function(n,i){
+  BDAY_DURS.push((i===5||i===11||i===18||i===24)?0.94:0.32);  /* 每句末音拖长 */
+});
+var birthdayTimer=null;
+function stopBirthday(){
+  if(birthdayTimer){clearTimeout(birthdayTimer);birthdayTimer=null;}
+  S.musicPlaying=false;
+}
+/* 分段播放（音乐与画面同步）：
+   ① 第一段 6 音：留在音符幕，五线谱 6 个固定音符按拍跳动；
+   ② 第一段末（约 2.4s）切到猫推蛋糕幕，音乐不停；
+   ③ 后三段在蛋糕 / 许愿 / 吹烛场景继续播放，全曲播完自然停。
+   进结局页 showEnding 也会兜底停乐。 */
+function playBirthday(){
+  stopBirthday();
+  S.musicPlaying=true;setTapHint("",false);
+  setTip("生日快乐歌响起来了！",2600);
+  FULL_SONG.forEach(function(n,i){
+    setTimeout(function(){
+      if(!S.musicPlaying)return;
+      tone(n.f,BDAY_DURS[i],"triangle",.14);
+      /* 只有第一段（音符幕）才让五线谱上的音符跳动 */
+      if(i<6&&S.act===NOTES){
+        var sl=noteSlots[i];
+        if(sl&&sl.fixed){
+          sl.fixed.setAttribute("transform","translate("+sl.x+","+(sl.y-8)+") scale(1.2)");
+          setTimeout(function(){
+            if(sl.fixed)sl.fixed.setAttribute("transform","translate("+sl.x+","+sl.y+")");
+          },260);
+        }
+      }
+    },BDAY_OFFSETS[i]);
+  });
+  /* 第一段结束 → 请出小猫推蛋糕；此时不停乐，后三段接着放 */
+  birthdayTimer=setTimeout(function(){
+    if(!S.musicPlaying||S.act!==NOTES)return;
+    startParade();
+  },BDAY_OFFSETS[6]-120);
+  /* 全曲播完兜底停乐 */
+  setTimeout(function(){if(S.musicPlaying)stopBirthday();},BDAY_OFFSETS[BDAY_OFFSETS.length-1]+1200);
+}
+
+/* ---------- ④ 戴领结的猫推蛋糕 ---------- */
+function startParade(){
+  /* 需求2：猫推蛋糕出现时不停乐——后三段生日歌在蛋糕/吹烛场景继续播放 */
+  S.act=PARADE;clearProps();
+  S.paradeT=0;S.paradeDone=false;
+  S.catVisible=true;S.catFade=1;S.catFace=1;
+  S.bowWorn=true;
+  if(C.bow)C.bow.removeAttribute("display");
+  S.girlX=GOAL.x-150;S.girlY=GOAL.y;S.pose="idle";S.armTarget=null;
+  aimAfter(0.95,GOAL.x-20,0.72,GOAL.y);
+  var cart=el("g",{id:"cakeCartFinal",transform:"translate("+(GOAL.x-280)+","+GOAL.y+")"},propG);
+  el("ellipse",{cx:0,cy:2,rx:62,ry:8,fill:"#000",opacity:".3"},cart);
+  el("rect",{x:-58,y:-30,width:116,height:10,rx:3,fill:"#8a6647"},cart);
+  el("circle",{cx:-38,cy:-12,r:9,fill:"#3a2f52"},cart);
+  el("circle",{cx:38,cy:-12,r:9,fill:"#3a2f52"},cart);
+  el("circle",{cx:-38,cy:-12,r:3.4,fill:"#7b68a0"},cart);
+  el("circle",{cx:38,cy:-12,r:3.4,fill:"#7b68a0"},cart);
+  var cake=el("g",{transform:"translate(0,-112)"},cart);
+  cake.innerHTML=cakeRoseMarkup({rx:46,bodyH:44,uid:"parade"});
+  [-22,0,22].forEach(function(cx,i){
+    el("rect",{x:cx-4,y:-20,width:8,height:20,rx:3,fill:"#FDF3E4"},cake);
+    el("rect",{x:cx-4,y:-20,width:3,height:20,fill:"#EEA6BB"},cake);
+    el("ellipse",{id:"wishFlame"+i,cx:cx,cy:-25,rx:5,ry:9,fill:"#FFC24B",class:"candleFlame"},cake);
+  });
+  STORY_PROPS.cart=cart;
+  STORY_PROPS.cartX=GOAL.x+50;   /* 车停稳后的世界 x，供吹蜡烛命中 */
+  SFX.cheer();
+  setTip("戴着领结的猫，推着蛋糕来了！",3000);
+  setTapHint("",false);
+}
+function updateParade(dt){
+  S.paradeT+=dt;
+  var p=clamp(S.paradeT/3.4,0,1);
+  var x=lerp(GOAL.x-280,GOAL.x+50,easeInOut(p));
+  if(STORY_PROPS.cart)STORY_PROPS.cart.setAttribute("transform","translate("+x.toFixed(1)+","+GOAL.y+")");
+  /* 猫在车左侧推，女孩从左侧一路跟上来；车停后她走到车的另一侧站定 */
+  S.catX=x-64;S.catY=GOAL.y-Math.abs(Math.sin(p*Math.PI*10))*5;S.catFace=1;
+  S.girlX=lerp(GOAL.x-150,x+108,easeInOut(clamp((p-0.25)/0.75,0,1)));
+  S.girlY=GOAL.y-Math.abs(Math.sin(p*Math.PI*8))*3;
+  if(p>=1&&!S.paradeDone){
+    S.paradeDone=true;S.girlX=x+108;S.catX=x-64;S.girlY=GOAL.y;S.catY=GOAL.y;
+    S.pose="idle";
+    SFX.win();confetti(70);
+    setTip("女孩和猫咪一起站在蛋糕前！",2200);
+    /* 需求3：站定后猫递信封 → 许愿 → 吹蜡烛 → 结算，不再直接弹结局 */
+    setTimeout(function(){if(S.act===PARADE)startWishGive();},1400);
+  }
+}
+
+/* ==========================================================================
+   登顶尾声：递信封 → 打字/录音许愿 → 交回猫 → 女孩吹蜡烛 → 结算
+   ========================================================================== */
+var WISH_KEY="hb_wish_v1";           /* localStorage 里保存愿望的键 */
+var FLAMES=[-22,0,22];               /* 蛋糕车上三支蜡烛相对车心的 x */
+function wishToast(t,dur){
+  var el=$("wishToast");if(!el)return;
+  el.textContent=t;el.classList.add("on");
+  if(el._t){clearTimeout(el._t);}
+  if(dur)el._t=setTimeout(function(){el.classList.remove("on");},dur);
+}
+function hideWishToast(){var el=$("wishToast");if(el){el.classList.remove("on");if(el._t)clearTimeout(el._t);}}
+/* 许愿面板：打字/录音两模式切换 */
+function setWishMode(mode){
+  S.wishType=mode;
+  var bt=$("wishTabType"),ba=$("wishTabAudio"),tw=$("wishTypeWrap"),aw=$("wishAudioWrap");
+  if(bt)bt.classList.toggle("on",mode==="text");
+  if(ba)ba.classList.toggle("on",mode==="audio");
+  if(tw)tw.style.display=mode==="text"?"":"none";
+  if(aw)aw.style.display=mode==="audio"?"":"none";
+  if(mode!=="audio")stopRec();
+}
+function showWishAudio(data){
+  var a=$("wishAudioPlay");
+  if(a&&data){a.src=data;a.style.display="";}
+}
+/* 录音：MediaRecorder，最长 15 秒；不支持时优雅降级为打字 */
+var recStream=null,recorder=null,recChunks=[],recTimer=null,recStartAt=0;
+function stopRec(){
+  if(recTimer){clearTimeout(recTimer);clearInterval(recTimer);recTimer=null;}
+  if(recorder&&recorder.state==="recording"){try{recorder.stop();}catch(e){}}
+  if(recStream){recStream.getTracks().forEach(function(t){t.stop();});recStream=null;}
+  var b=$("recBtn");if(b){b.classList.remove("rec");b.textContent="● 开始录音";}
+}
+function toggleRec(){
+  var btn=$("recBtn"),hint=$("recHint");
+  if(recorder&&recorder.state==="recording"){stopRec();return;}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==="undefined"){
+    if(hint)hint.textContent="此环境不支持录音，请用打字许愿";
+    setWishMode("text");
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    recStream=stream;recChunks=[];
+    try{recorder=new MediaRecorder(stream);}catch(e){recorder=new (window.MediaRecorder)(stream);}
+    recorder.ondataavailable=function(ev){if(ev.data&&ev.data.size)recChunks.push(ev.data);};
+    recorder.onstop=function(){
+      if(!recChunks.length)return;
+      var blob=new Blob(recChunks,{type:recorder.mimeType||"audio/webm"});
+      var fr=new FileReader();
+      fr.onload=function(){S.wishData=fr.result;showWishAudio(fr.result);};
+      fr.readAsDataURL(blob);
+      if(hint)hint.textContent="录好了！可以播放听听，然后提交";
+    };
+    recorder.start();
+    recStartAt=Date.now();
+    if(btn){btn.classList.add("rec");btn.textContent="■ 停止录音";}
+    var tick=setInterval(function(){
+      var left=15-Math.floor((Date.now()-recStartAt)/1000);
+      if(left<=0){stopRec();return;}
+      if(hint)hint.textContent="正在录音 · "+left+" 秒后自动结束";
+    },500);
+    recTimer=tick;
+  }).catch(function(){
+    if(hint)hint.textContent="没拿到麦克风权限，请用打字许愿";
+    setWishMode("text");
+  });
+}
+/* 读/写本地愿望，供二次进入查看 */
+function loadWish(){
+  try{
+    var s=localStorage.getItem(WISH_KEY);
+    if(!s)return null;
+    var o=JSON.parse(s);
+    if(!o||(!o.text&&!o.data))return null;
+    return o;
+  }catch(e){return null;}
+}
+function saveWish(o){
+  try{localStorage.setItem(WISH_KEY,JSON.stringify(o));}catch(e){}
+}
+/* ---------- 信封道具（世界坐标：女孩手边 / 猫手边） ---------- */
+function envelopeFrom(){return {x:S.catX+18,y:GOAL.y-52};}
+/* 递信终点：女孩身前的手上（前手 fistR 局部约 (18,-58)，略抬高到 -62） */
+function envelopeTo(){return {x:S.girlX+20,y:GOAL.y-62};}
+function buildEnvelope(layer){
+  var host=layer||afterG;
+  if(!host)return;
+  var g=el("g",{id:"wishEnvelope"},host);
+  el("rect",{x:-26,y:-17,width:52,height:34,rx:4,fill:"#FFF3D0",stroke:"#D9A441","stroke-width":2.4},g);
+  el("path",{d:"M-26,-17 L0,3 L26,-17",fill:"none",stroke:"#D9A441","stroke-width":2.2},g);
+  el("circle",{cx:0,cy:3,r:5.2,fill:"#FF6FA5",stroke:"#C24E7C","stroke-width":1.2},g);
+  el("path",{d:"M-3,3 l2.4,2.4 L4,0",fill:"none",stroke:"#fff","stroke-width":1.6,"stroke-linecap":"round","stroke-linejoin":"round"},g);
+  var p=envelopeFrom();
+  g.setAttribute("transform","translate("+p.x+","+p.y+") rotate(-8)");
+  STORY_PROPS.envelope=g;
+}
+function moveEnvelopeTo(p,rot){
+  var g=STORY_PROPS.envelope;
+  if(g)g.setAttribute("transform","translate("+p.x.toFixed(1)+","+p.y.toFixed(1)+") rotate("+(rot||0)+")");
+}
+/* ---------- ① 猫递信：汽车停稳后，猫走到女孩旁把信递过去 ---------- */
+function startWishGive(){
+  S.act=WISH;S.wishPhase="give";S.wishT=0;
+  S.catVisible=true;S.catFade=1;S.catFace=-1;S.catY=GOAL.y;
+  S.girlY=GOAL.y;S.pose="idle";S.armTarget=null;
+  aimAfter(1.05,GOAL.x+70,0.72,GOAL.y);
+  /* 信必须画在女孩之上（afterG 在 girlG 之下会被身体盖住），
+     用置顶的 visitG 前景层，确保看起来是放在她身前的手上。 */
+  if(visitG)visitG.setAttribute("display","");
+  buildEnvelope(visitG);
+  hideWishToast();
+  setTip("小猫从怀里掏出一封信…",2600);
+  setTapHint("",false);
+  SFX.meow&&SFX.meow();
+}
+function updateWishGive(dt){
+  S.wishT+=dt;
+  var p=clamp(S.wishT/2.0,0,1),e=easeInOut(p);
+  var from=envelopeFrom(),to=envelopeTo();
+  /* 猫从车左侧走向女孩方向，把信递出 */
+  S.catX=lerp(STORY_PROPS.cartX-64,to.x-52,e);
+  S.catFace=-1;
+  S.catY=GOAL.y-Math.abs(Math.sin(p*Math.PI*4))*5;
+  var ex=lerp(from.x,to.x,e),ey=lerp(from.y,to.y,e)-Math.sin(p*Math.PI)*34;
+  moveEnvelopeTo({x:ex,y:ey},lerp(-8,4,e));
+  if(p>=1){
+    S.wishPhase="offer";S.wishT=0;
+    wishToast("点一下信封 · 写下你的愿望");
+    setTip("信封送到了 · 打开它许个愿",2600);
+    if(S.hasPrevWish&&S.keepWish)setTip("用上次的愿望，也可以重新写",2600);
+  }
+}
+/* ---------- ② 拆信 → 显示许愿面板（打字/录音） ---------- */
+function openWishPanel(){
+  var panel=$("wishPanel");if(!panel)return;
+  panel.classList.add("on");
+  S.wishPhase="writing";S.wishT=0;
+  setTapHint("",false);
+  hideWishToast();
+  /* 二次进入且选择保留：预填上次愿望，让用户确认或改写 */
+  var prev=loadWish();
+  var ta=$("wishText");
+  if(ta){ta.value=(prev&&prev.text)||"";updateWishCount();}
+  if(prev&&prev.type==="audio"&&prev.data){
+    S.wishData=prev.data;setWishMode("audio");showWishAudio(prev.data);
+  }
+  setTip("把愿望写进信里，交给呼噜",2600);
+}
+function closeWishPanel(){
+  var panel=$("wishPanel");if(panel)panel.classList.remove("on");
+  stopRec();
+}
+function updateWishCount(){
+  var ta=$("wishText"),c=$("wishCount");
+  if(ta&&c)c.textContent=ta.value.length;
+}
+/* 提交愿望 → 信封飞回猫 → 女孩吹蜡烛 */
+function commitWish(type,text,data){
+  S.wishType=type||"text";
+  S.wishText=(text||"").slice(0,200);
+  S.wishData=data||"";
+  S.wishDone=true;
+  if(S.wishText||S.wishData)saveWish({type:S.wishType,text:S.wishText,data:S.wishData,ts:Date.now()});
+  closeWishPanel();
+  S.wishPhase="back";S.wishT=0;
+  S.pose="handoff";                 /* 女孩伸手把写好愿望的信递给小猫 */
+  var from=envelopeTo(),to=envelopeFrom();
+  STORY_PROPS.wishFrom=from;STORY_PROPS.wishTo={x:S.catX+18,y:GOAL.y-52};
+  setTip("愿望收回来了 · 该吹蜡烛啦",2600);
+  setTapHint("",false);
+  wishToast("呼噜收好了这封信");
+  SFX.cheer&&SFX.cheer();
+}
+function updateWishBack(dt){
+  S.wishT+=dt;
+  var p=clamp(S.wishT/1.4,0,1),e=easeInOut(p);
+  var from=STORY_PROPS.wishFrom||envelopeTo(),to=STORY_PROPS.wishTo||envelopeFrom();
+  moveEnvelopeTo({x:lerp(from.x,to.x,e),y:lerp(from.y,to.y,e)},lerp(4,-10,e));
+  S.catX=lerp(to.x-52,STORY_PROPS.cartX-64,e);
+  S.catFace=1;
+  if(p>=1){
+    if(STORY_PROPS.envelope&&STORY_PROPS.envelope.parentNode)STORY_PROPS.envelope.parentNode.removeChild(STORY_PROPS.envelope);
+    STORY_PROPS.envelope=null;
+    S.pose="idle";                  /* 递信完成，恢复待机 */
+    S.wishPhase="blow";S.wishT=0;
+    setTip("点一下蛋糕上的蜡烛，替她吹灭",3000);
+    wishToast("许完愿啦，吹蜡烛吧");
+  }
+}
+/* ---------- ③ 吹蜡烛：点场景里蛋糕车的火焰，全灭后进结算 ---------- */
+function wishCandleWorld(i){
+  var cx=(STORY_PROPS.cartX!=null?STORY_PROPS.cartX:GOAL.x+50)+FLAMES[i];
+  return {x:cx,y:GOAL.y-112-25};
+}
+function blowWishCandle(i){
+  if(S.act!==WISH||S.wishPhase!=="blow")return false;
+  var f=$("wishFlame"+i);
+  if(!f||f.style.display==="none")return false;
+  f.style.display="none";
+  var p=wishCandleWorld(i);
+  puffAt(p.x,p.y);
+  SFX.blow();
+  var left=0;
+  for(var k=0;k<FLAMES.length;k++){var fe=$("wishFlame"+k);if(fe&&fe.style.display!=="none")left++;}
+  if(left===0){
+    S.wishPhase="done";
+    setTapHint("",false);
+    wishToast("愿望一定会实现 ✨",2400);
+    SFX.win&&SFX.win();
+    /* 先放彩带 + 烟花礼花，让礼花飞一会儿，再出结算页 */
+    confetti(90);fireworks();
+    setTimeout(function(){if(S.act===WISH)showEnding();},1500);
+  }else{
+    setTip("还有 "+left+" 支蜡烛，继续吹",1800);
+  }
+  return true;
+}
+/* WISH 幕的场景点击：offer 阶段点信封拆开；blow 阶段点蜡烛吹灭 */
+function tapWishScene(e){
+  ac();
+  var w=climbWorldPt(e);
+  if(S.wishPhase==="offer"){
+    /* 点信封（宽判定）或屏幕任意处都视为拆信，移动端更好点 */
+    var ep=envelopeTo();
+    var dx=w.x-ep.x,dy=w.y-ep.y;
+    openWishPanel();
+    SFX.pick&&SFX.pick();
+    return;
+  }
+  if(S.wishPhase==="blow"){
+    /* 优先命中具体蜡烛，否则吹灭最近的一支 */
+    var best=-1,bd=1e9;
+    for(var i=0;i<3;i++){
+      var f=$("wishFlame"+i);
+      if(!f||f.style.display==="none")continue;
+      var p=wishCandleWorld(i),d=(w.x-p.x)*(w.x-p.x)+(w.y-p.y)*(w.y-p.y);
+      if(d<bd){bd=d;best=i;}
+    }
+    if(best>=0&&bd<95*95)blowWishCandle(best);
+    else if(best>=0)blowWishCandle(best);   /* 吹烛阶段任意点击都吹最近一支，避免移动端难点 */
+    return;
+  }
+}
+/* 场景坐标上的一小团吹灭烟雾（复用 SVG 粒子） */
+/* 烟雾代际：每开一轮 +1，旧烟雾的 rAF 发现代际不符立即收工，
+   避免落幕/切后台导致 rAF 冻结、白点残留到下一轮（用户反馈的「三个白点」）。 */
+var smokeGen=0;
+function clearFxSmoke(){
+  smokeGen++;
+  if(!fxG)return;
+  /* 只清烟雾圆（半透明白 fill），别误伤 fxG 里的其它特效 */
+  var all=fxG.querySelectorAll("circle");
+  for(var i=all.length-1;i>=0;i--){
+    var f=all[i].getAttribute("fill")||"";
+    if(/rgba\(255,\s*255,\s*255/.test(f)&&all[i].parentNode)all[i].parentNode.removeChild(all[i]);
+  }
+}
+function puffAt(x,y){
+  var gen=smokeGen;
+  for(var i=0;i<8;i++){
+    var c=el("circle",{cx:x,cy:y,r:2+Math.random()*3,fill:"rgba(255,255,255,.75)"},fxG);
+    var a=Math.random()*Math.PI*2,sp=30+Math.random()*70;
+    var vx=Math.cos(a)*sp,vy=Math.sin(a)*sp-30,life=0;
+    (function pl(){
+      if(gen!==smokeGen||!c.parentNode)return;   /* 幕切换或已被清 → 直接停 */
+      life+=.03;
+      c.setAttribute("cx",(x+vx*life).toFixed(1));
+      c.setAttribute("cy",(y+vy*life+life*life*40).toFixed(1));
+      c.setAttribute("opacity",Math.max(0,1-life/1.1).toFixed(2));
+      if(life<1.1)requestAnimationFrame(pl);
+      else if(c.parentNode)c.parentNode.removeChild(c);
+    })();
+  }
+}
+/* ==========================================================================
+   二次进入：小猫送来上次的愿望信 → 查看/续愿 → 睡觉 → 继续探索
+   ========================================================================== */
+function startRevisit(){
+  hideWishToast();closeWishPanel();closeEnvPanel();
+  clearFxSmoke();   /* 结局页吹烛烟雾可能还挂着，进回访前先清 */
+  $("end").classList.remove("on");
+  $("cakeBox").dataset.done="";$("cakeBox").innerHTML="";
+  $("hintC").textContent="把愿望留在烛光里 ✨";
+  FX.parts.length=0;
+  clearProps();clearAfter();
+  stopBirthday();
+  /* 复现「第一次拍灯」的黑底灯幕：小猫带着信出现在灯的背景里 */
+  setIntroScene(true);
+  if(sleepG)sleepG.setAttribute("display","none");   /* 这次是站立猫叼信，不是睡猫 */
+  if(visitG)visitG.setAttribute("display","");
+  setLampLevel(2);                                    /* 灯亮着，暖暖的 */
+  S.act=REVISIT;S.revisitPhase="enter";S.revisitT=0;
+  S.catVisible=true;S.catFade=1;S.catFace=1;S.catY=GROUND;
+  S.girlX=LAMP_GIRL_IN_X;S.girlY=GROUND;S.pose="idle";S.armTarget=null;
+  S.hasPrevWish=!!loadWish();
+  S.keepWish=false;
+  S.catX=LAMP_CAT_SLEEP_X+250;
+  buildEnvelope(visitG);                              /* 信在猫手边（回访前景层） */
+  moveEnvelopeTo(revisitEnvelopePt(),-6);
+  setTip("呼噜叼着一封信，从灯下走来…",2800);
+  setTapHint("",false);
+  SFX.meow&&SFX.meow();
+}
+/* 回访信的世界坐标（灯幕里，跟着猫手边） */
+function revisitEnvelopePt(){return {x:S.catX+18,y:S.catY-52};}
+function updateRevisit(dt){
+  S.revisitT+=dt;
+  if(S.revisitPhase==="enter"){
+    var p=clamp(S.revisitT/2,0,1),e=easeInOut(p);
+    S.catX=lerp(LAMP_CAT_SLEEP_X+250,LAMP_CAT_SLEEP_X+70,e);
+    S.catY=GROUND-Math.abs(Math.sin(p*Math.PI*4))*6;
+    moveEnvelopeTo(revisitEnvelopePt(),lerp(-6,3,e));
+    if(p>=1){showEnvClosed();}
+  }else if(S.revisitPhase==="sleep"){
+    var q=clamp(S.revisitT/2.0,0,1);
+    if(q>=1)finishRevisit();
+  }
+}
+/* 第一步：关上的信封 + 「打开信封 / 重新许愿」 */
+function showEnvClosed(){
+  S.revisitPhase="sealed";S.revisitT=0;
+  var panel=$("envClosedPanel");if(panel)panel.classList.add("on");
+  wishToast("点一下信封，看看上次写了什么");
+  setTapHint("点信封打开",true);
+}
+function closeEnvPanel(){var p=$("envClosedPanel");if(p)p.classList.remove("on");}
+/* 第二步：打开信 → 愿望 + 日期 + 「保留 / 重新许愿」 */
+function openRevisitLetter(){
+  var cp=$("envClosedPanel");if(cp)cp.classList.remove("on");
+  showRevisitPanel();
+}
+function wishDateText(ts){
+  if(!ts)return "";
+  var d=new Date(ts);
+  if(isNaN(d.getTime()))return "";
+  return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日 许下";
+}
+function showRevisitPanel(){
+  S.revisitPhase="view";S.revisitT=0;
+  var box=$("revisitBody");if(!box)return;
+  var prev=loadWish();
+  /* 日期移到内容框内顶部（wishDate），与标题分离，语音/文字都显示，不再重叠 */
+  var dt=$("revisitDate");if(dt)dt.textContent=wishDateText(prev&&prev.ts);
+  if(prev&&prev.type==="audio"&&prev.data){
+    box.innerHTML='<div style="font-size:12px;opacity:.7;margin-bottom:4px">上次的语音愿望</div>';
+    var au=document.createElement("audio");au.controls=true;au.src=prev.data;box.appendChild(au);
+  }else{
+    box.textContent=(prev&&prev.text)||"（上次没有写下文字）";
+  }
+  var panel=$("revisitPanel");if(panel)panel.classList.add("on");
+  SFX.press&&SFX.press();
+  setTip("看看上次的愿望 · 要留着还是重写？",3000);
+  setTapHint("",false);
+}
+/* 保留或重写都进入「猫睡觉」过渡，区别只在后续 WISH 幕是否预填/跳过 */
+function closeRevisit(keep){
+  var panel=$("revisitPanel");if(panel)panel.classList.remove("on");
+  var cp=$("envClosedPanel");if(cp)cp.classList.remove("on");
+  S.keepWish=!!keep;
+  S.revisitPhase="sleep";S.revisitT=0;
+  setTip("呼噜打了个哈欠，在灯下睡着了…",2600);
+  wishToast(keep?"愿望先帮你收好":"这次想重新许一个");
+  /* 收起信：从回访前景层移除 */
+  if(STORY_PROPS.envelope&&STORY_PROPS.envelope.parentNode)STORY_PROPS.envelope.parentNode.removeChild(STORY_PROPS.envelope);
+  STORY_PROPS.envelope=null;
+  if(visitG)visitG.setAttribute("display","none");
+  /* 站立猫退场，切回「第一次拍灯」画面里的蜷缩睡猫（灯座旁） */
+  S.catVisible=false;
+  S.catX=LAMP_CAT_SLEEP_X;S.catY=LAMP_CAT_SLEEP_Y;
+  if(sleepG){
+    sleepG.setAttribute("display","");
+    sleepG.setAttribute("transform","translate("+LAMP_CAT_SLEEP_X+","+LAMP_CAT_SLEEP_Y+")");
+  }
+  var se=$("sleepShut"),oe=$("sleepOpen");
+  if(se)se.setAttribute("display","");
+  if(oe)oe.setAttribute("display","none");
+}
+function finishRevisit(){
+  if(sleepG)sleepG.setAttribute("display","none");
+  hideWishToast();
+  /* 柔和落幕：阁楼 → 墙面，重新爬一次 */
+  var cur=$("curtain");
+  function go(){
+    clearProps();clearAfter();
+    resetDentsFresh();                    /* 凹槽/岩点恢复未砸未装，重走完整一轮 */
+    setIntroScene(false);                 /* 收起黑底灯幕，恢复墙面/地面 */
+    if(visitG)visitG.setAttribute("display","none");
+    if(sleepG)sleepG.setAttribute("display","none");
+    S.catVisible=false;S.catFade=1;S.catX=560;S.catY=GROUND;
+    S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+    S.bowWorn=false;S.paradeDone=false;S.notesPlaced=0;stopBirthday();
+    if(C.bow)C.bow.setAttribute("display","none");
+    setTapHint("",false);
+    S.pose="idle";S.poseT=99;S.gripping=false;
+    /* 需求5：二次探索从「拍灯」重新开始，猫在灯下睡着的画面即开场灯幕。
+       startLamp 会重建睡猫、黑底灯幕、灯亮度与拍灯提示。 */
+    startLamp();
+    setTip("灯下呼噜睡着了 · 拍拍灯，重新开始",3000);
+  }
+  if(cur){cur.style.transition="none";cur.style.opacity="1";
+    void cur.offsetWidth;cur.style.transition="opacity .7s ease";cur.style.opacity="0";
+    setTimeout(go,220);
+  }else go();
+}
+
+function showEnding(){
+  S.act=WIN;
+  if($("end").classList.contains("on"))return;
+  $("end").classList.add("on");buildCake();confetti(60);
+}
+
+function celebrate(){
+  var cols=["#FFC24B","#FF7A5C","#4FD1C5","#B794F6","#FF6FA5","#FFF3D0"];
+  for(var i=0;i<30;i++){
+    var a=Math.random()*Math.PI*2,sp=90+Math.random()*230;
+    var c=el("circle",{cx:GOAL.x,cy:GOAL.y-20,r:2+Math.random()*3.4,fill:cols[i%cols.length]},fxG);
+    debris(c,GOAL.x,GOAL.y-20,Math.cos(a)*sp,Math.sin(a)*sp-110,1000);
+  }
+}
+/* 玫瑰千层蛋糕（参考 Mofei's Bakery）：粉绿相间的千层侧面 + 粉色玫瑰裱花
+   + 玫瑰花瓣/开心果碎 + 金色铭牌。uid 每处唯一，避免多个蛋糕的 clipPath/渐变 id 互相覆盖。 */
+function cakeRoseMarkup(o){
+  var rx=o.rx, bodyH=o.bodyH, ry=o.ry||Math.round(rx*0.34), uid=o.uid||"cake";
+  var bands=["#FBE7EC","#EEA6BB","#FFF4E9","#D5E4A6","#FFF4E9","#EC9FB6","#FFF4E9","#CCDF98","#F7E3EA"];
+  var s=[];
+  s.push('<defs>'+
+    '<clipPath id="cakeClip'+uid+'"><path d="M'+(-rx)+',0 L'+(-rx)+','+bodyH+' A'+rx+','+ry+' 0 0 0 '+rx+','+bodyH+' L'+rx+',0 Z"/></clipPath>'+
+    '<linearGradient id="cakeShade'+uid+'" x1="0" y1="0" x2="1" y2="0">'+
+      '<stop offset="0" stop-color="#5A3A48" stop-opacity=".28"/><stop offset=".18" stop-color="#5A3A48" stop-opacity="0"/>'+
+      '<stop offset=".82" stop-color="#5A3A48" stop-opacity="0"/><stop offset="1" stop-color="#5A3A48" stop-opacity=".32"/>'+
+    '</linearGradient>'+
+    '<linearGradient id="cakeGold'+uid+'" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0" stop-color="#FBE7AC"/><stop offset=".5" stop-color="#E8C46B"/><stop offset="1" stop-color="#C79A40"/>'+
+    '</linearGradient></defs>');
+  /* 侧面千层：每条横带的上下缘都是与顶部椭圆前缘相同的下凹弧（sweep 左→右 0 / 右→左 1） */
+  var bh=bodyH/bands.length;
+  for(var i=0;i<bands.length;i++){
+    var y1=i*bh, y2=(i+1)*bh;
+    s.push('<path d="M'+(-rx)+','+y1.toFixed(1)+
+      ' A'+rx+','+ry+' 0 0 0 '+rx+','+y1.toFixed(1)+
+      ' L'+rx+','+y2.toFixed(1)+
+      ' A'+rx+','+ry+' 0 0 1 '+(-rx)+','+y2.toFixed(1)+' Z" fill="'+bands[i]+'"/>');
+  }
+  /* 圆柱左右明暗：同形弧带覆盖整个侧面 */
+  s.push('<path d="M'+(-rx)+',0 A'+rx+','+ry+' 0 0 0 '+rx+',0 L'+rx+','+bodyH+
+    ' A'+rx+','+ry+' 0 0 1 '+(-rx)+','+bodyH+' Z" fill="url(#cakeShade'+uid+')"/>');
+  s.push('<path d="M'+(-rx)+','+bodyH+' A'+rx+','+ry+' 0 0 0 '+rx+','+bodyH+'" fill="none" stroke="#CBAE93" stroke-width="1.2" opacity=".55"/>');
+  /* 顶面奶油 + 双螺旋玫瑰裱花 */
+  s.push('<ellipse cx="0" cy="0" rx="'+rx+'" ry="'+ry+'" fill="#FDEDF0"/>');
+  function spiral(phase){
+    var pts=[],N=Math.PI*4.4;
+    for(var t=0;t<=N;t+=0.2){
+      var rr=rx*0.84*(1-t/N*0.82);
+      pts.push((Math.cos(t+phase)*rr).toFixed(1)+","+(Math.sin(t+phase)*rr*(ry/rx)).toFixed(1));
+    }
+    return "M"+pts.join(" L");
+  }
+  s.push('<path d="'+spiral(0)+'" fill="none" stroke="#E9A3BA" stroke-width="'+(rx*0.1).toFixed(1)+'" stroke-linecap="round"/>');
+  s.push('<path d="'+spiral(Math.PI)+'" fill="none" stroke="#F8D3DF" stroke-width="'+(rx*0.075).toFixed(1)+'" stroke-linecap="round"/>');
+  s.push('<ellipse cx="0" cy="0" rx="'+(rx*0.13).toFixed(1)+'" ry="'+(ry*0.16).toFixed(1)+'" fill="#E994B2"/>');
+  /* 干玫瑰花瓣 */
+  var petals=[[-2.7,.74,2.4,0],[.35,.79,2.1,1],[2.5,.72,2.6,2],[-1.5,.83,1.9,3],[1.6,.7,2.3,1],
+              [-.4,.86,2,0],[3.0,.62,2.2,2],[-2.0,.6,1.8,3],[.9,.88,2,1],[-1.0,.55,1.7,0],[2.0,.85,2.1,2],[-3.0,.8,1.9,3]];
+  var pcols=["#9C2F63","#B23A72","#C95386","#8E2C5C"];
+  petals.forEach(function(p){
+    var x=(Math.cos(p[0])*rx*p[1]).toFixed(1), y=(Math.sin(p[0])*ry*p[1]).toFixed(1);
+    s.push('<ellipse cx="'+x+'" cy="'+y+'" rx="'+(p[2]*1.5).toFixed(1)+'" ry="'+(p[2]*0.7).toFixed(1)+'" fill="'+pcols[p[3]]+'" transform="rotate('+(p[0]*57).toFixed(0)+' '+x+' '+y+')" opacity=".92"/>');
+  });
+  /* 开心果碎（确定性散布，避免每帧闪烁） */
+  function rnd(n){var x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x);}
+  for(var k=0;k<16;k++){
+    var a=rnd(k+1)*Math.PI*2, rf=0.42+rnd(k+21)*0.46;
+    var x=(Math.cos(a)*rx*rf).toFixed(1), y=(Math.sin(a)*ry*rf).toFixed(1);
+    s.push('<ellipse cx="'+x+'" cy="'+y+'" rx="'+(1+rnd(k+41)*0.9).toFixed(1)+'" ry="'+(0.8+rnd(k+61)*0.6).toFixed(1)+'" fill="'+(k%2?"#F0D98A":"#E4BE63")+'"/>');
+  }
+  /* 中央金色铭牌 */
+  s.push('<ellipse cx="0" cy="0" rx="'+(rx*0.34).toFixed(1)+'" ry="'+(ry*0.44).toFixed(1)+'" fill="url(#cakeGold'+uid+')" stroke="#B98C39" stroke-width="1"/>');
+  s.push('<ellipse cx="0" cy="0" rx="'+(rx*0.29).toFixed(1)+'" ry="'+(ry*0.36).toFixed(1)+'" fill="none" stroke="#F6E3AE" stroke-width=".8" opacity=".9"/>');
+  if(o.plaqueText)
+    s.push('<text x="0" y="'+(ry*0.08).toFixed(1)+'" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="'+(rx*0.11).toFixed(1)+'" fill="#6E4A20">'+o.plaqueText+'</text>');
+  return s.join("");
+}
+function buildCake(){
+  var box=$("cakeBox");
+  if(box.dataset.done)return;
+  box.dataset.done="1";
+  /* 结局页：女孩和戴领结的黑猫一起站在蛋糕前（SVG 小插画） */
+  $("endCats").innerHTML=
+  '<svg viewBox="0 0 150 62" style="display:block;margin:0 auto">'+
+  '<ellipse cx="75" cy="58" rx="62" ry="4" fill="#000" opacity=".22"/>'+
+  /* 女孩（左）：长发、青色上衣、红鞋 */
+  '<path d="M46 20 q-9 4 -9 20 q0 8 4 12 l6 0 q-4 -14 -1 -24 z" fill="#2b2036"/>'+
+  '<path d="M64 20 q9 4 9 20 q0 8 -4 12 l-6 0 q4 -14 1 -24 z" fill="#2b2036"/>'+
+  '<path d="M52 46 L52 58 M62 46 L62 58" stroke="#f0b8a0" stroke-width="5" stroke-linecap="round"/>'+
+  '<ellipse cx="52" cy="59" rx="5" ry="3" fill="#e8544f"/><ellipse cx="62" cy="59" rx="5" ry="3" fill="#e8544f"/>'+
+  '<path d="M50 32 q8 -4 16 0 l2 16 q-10 4 -20 0 z" fill="#7fd4c8"/>'+
+  '<path d="M50 48 q10 4 18 0 l-1 4 q-8 3 -16 0 z" fill="#4a3f6b"/>'+
+  '<path d="M49 35 q-7 6 -3 13 M67 35 q7 6 3 13" stroke="#f0b8a0" stroke-width="4" fill="none" stroke-linecap="round"/>'+
+  '<circle cx="58" cy="22" r="13" fill="#f6c4ad"/>'+
+  '<path d="M45 22 q0 -15 13 -15 q13 0 13 15 q-3 -9 -13 -9 q-10 0 -13 9 z" fill="#2b2036"/>'+
+  '<circle cx="53" cy="22" r="1.6" fill="#3a2b48"/><circle cx="63" cy="22" r="1.6" fill="#3a2b48"/>'+
+  '<path d="M55 28 q3 3 6 0" stroke="#c2676a" stroke-width="1.6" fill="none" stroke-linecap="round"/>'+
+  /* 戴领结的黑猫（右）：挥爪 */
+  '<path d="M112 46 q14 1 12 -13" stroke="#181325" stroke-width="6" fill="none" stroke-linecap="round"/>'+
+  '<ellipse cx="100" cy="46" rx="17" ry="15" fill="#181325"/>'+
+  '<ellipse cx="101" cy="48" rx="9" ry="8" fill="#241c36"/>'+
+  '<path d="M86 34 L83 21 L95 30 Z" fill="#181325"/><path d="M114 34 L117 21 L105 30 Z" fill="#181325"/>'+
+  '<circle cx="100" cy="36" r="15" fill="#181325"/>'+
+  '<ellipse cx="94" cy="35" rx="4" ry="4.8" fill="#FFF3D0"/><ellipse cx="106" cy="35" rx="4" ry="4.8" fill="#FFF3D0"/>'+
+  '<circle cx="94.7" cy="35.5" r="2.2" fill="#FFC24B"/><circle cx="106.7" cy="35.5" r="2.2" fill="#FFC24B"/>'+
+  '<path d="M97.6 42 h4.8 l-2.4 2.6 z" fill="#FF8FA3"/>'+
+  '<path d="M100 48 q-6 -8 -15 -7 q-2 6 7 8 q-9 2 -7 8 q9 1 15 -7 q6 8 15 7 q2 -6 -7 -8 q9 -2 7 -8 q-9 -1 -15 7 z" fill="#FF6FA5" stroke="#C24E7C" stroke-width="1.2"/>'+
+  '<g class="paw"><circle cx="125" cy="31" r="5" fill="#20192f"/>'+
+  '<circle cx="130" cy="25" r="2" fill="#20192f"/><circle cx="133" cy="28" r="1.8" fill="#20192f"/></g>'+
+  '</svg><span>亲手制造的回忆瞬间 随时开启</span>';
+  box.innerHTML=
+  '<svg viewBox="0 0 200 170" width="196" style="display:block;overflow:visible">'+
+  '<ellipse cx="100" cy="154" rx="72" ry="9" fill="#000" opacity=".3"/>'+
+  '<g transform="translate(100,98)">'+cakeRoseMarkup({rx:68,bodyH:52,uid:"ending",plaqueText:"Mofei's"})+'</g>'+
+  [72,100,128].map(function(cx){
+    return '<g class="cnd" style="cursor:pointer">'+
+      '<rect x="'+(cx-5)+'" y="64" width="10" height="34" rx="4" fill="#F4E3C8"/>'+
+      '<rect x="'+(cx-5)+'" y="64" width="4" height="34" fill="#FF8FA3" opacity=".8"/>'+
+      '<g class="flame" style="transform-box:fill-box;transform-origin:center bottom;animation:flick .42s '+(cx%7*0.06).toFixed(2)+'s infinite alternate">'+
+      '<ellipse cx="'+cx+'" cy="53" rx="7" ry="13" fill="#FFC24B"/>'+
+      '<ellipse cx="'+cx+'" cy="55" rx="3.4" ry="7" fill="#FFF3D0"/></g></g>';
+  }).join("")+
+  '</svg>';
+  box.onclick=function(){
+    var f=box.querySelectorAll(".flame"),any=false,left=0;
+    for(var i=0;i<f.length;i++){
+      if(f[i].style.display!=="none"){f[i].style.display="none";any=true;puff(f[i]);}
+      if(f[i].style.display!=="none")left++;
+    }
+    if(any){
+      SFX.blow();
+      if(left===0){
+        $("hintC").textContent="愿望已经送出去啦 ✨";
+        setTimeout(function(){confetti(70);fireworks();},380);
+      }
+    }
+  };
+}
+function puff(node){
+  var r=node.getBoundingClientRect(),st=$("stage").getBoundingClientRect();
+  for(var i=0;i<8;i++){
+    var d=document.createElement("div");
+    d.style.cssText="position:absolute;border-radius:99px;background:rgba(255,255,255,.45);"+
+      "left:"+(r.left+r.width/2-st.left).toFixed(0)+"px;top:"+(r.top-st.top).toFixed(0)+"px;"+
+      "width:6px;height:6px;pointer-events:none;z-index:31";
+    $("stage").appendChild(d);
+    var dx=(Math.random()-.5)*44,dy=-22-Math.random()*34;
+    var x=0,t0=performance.now();
+    (function go(){
+      var t=(performance.now()-t0)/950;
+      if(t>=1){d.remove();return;}
+      x+=dx/60;
+      d.style.transform="translate("+x.toFixed(1)+"px,"+(-t*t*36).toFixed(1)+"px) scale("+(1+t*1.7).toFixed(2)+")";
+      d.style.opacity=(0.5-t*0.5).toFixed(2);
+      requestAnimationFrame(go);
+    })();
+  }
+}
+
+/* ==========================================================================
+   Canvas 粒子
+   ========================================================================== */
+var FX={ctx:null,w:0,h:0,parts:[]};
+function fxLoop(dt){
+  var c=FX.ctx;if(!c)return;
+  c.clearRect(0,0,FX.w,FX.h);
+  for(var i=FX.parts.length-1;i>=0;i--){
+    var p=FX.parts[i];p.life+=dt;
+    if(p.t==="c"){
+      p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;
+      if(p.y>FX.h+40){FX.parts.splice(i,1);continue;}
+      c.save();c.translate(p.x,p.y);c.rotate(p.rot);
+      c.fillStyle=p.c;
+      c.globalAlpha=p.y>FX.h-130?Math.max(0,(FX.h-p.y)/130):1;
+      c.fillRect(-p.w/2,-p.h/2,p.w,p.h*(0.5+Math.abs(Math.sin(p.life*3))*0.5));
+      c.restore();
+    }else{
+      p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.vx*=0.985;p.vy*=0.985;
+      if(p.life>2.2){FX.parts.splice(i,1);continue;}
+      c.globalAlpha=Math.max(0,1-p.life/2.2);
+      c.fillStyle=p.c;c.beginPath();c.arc(p.x,p.y,p.r,0,6.3);c.fill();
+    }
+  }
+  c.globalAlpha=1;
+}
+function confetti(n){
+  var cols=["#FFC24B","#FF7A5C","#4FD1C5","#B794F6","#FF6FA5","#FFF3D0","#8CFFC4"];
+  for(var i=0;i<(n||60);i++)FX.parts.push({t:"c",x:Math.random()*FX.w,y:-24-Math.random()*FX.h*.7,
+    vx:(Math.random()-.5)*1.3,vy:1.3+Math.random()*2.3,w:5+Math.random()*7,h:8+Math.random()*10,
+    rot:Math.random()*6.28,vr:(Math.random()-.5)*.22,c:cols[i%cols.length],life:0});
+}
+function fireworks(){
+  var cols=["#FFC24B","#FF7A5C","#4FD1C4","#B794F6","#FF6FA5","#FFF3D0"];
+  for(var k=0;k<4;k++){
+    (function fire(k){
+      setTimeout(function(){
+        var cx=FX.w*(0.2+Math.random()*0.6),cy=FX.h*(0.22+Math.random()*0.34);
+        for(var i=0;i<48;i++){
+          var a=i/48*Math.PI*2+Math.random()*.2,sp=1.5+Math.random()*3.4;
+          FX.parts.push({t:"f",x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+            c:cols[i%cols.length],r:2+Math.random()*2.1,life:0});
+        }
+        tone(500+Math.random()*420,.5,"sine",.055,120);
+      },k*400);
+    })(k);
+  }
+}
+
+/* ==========================================================================
+   尺寸 / 坐标
+   ========================================================================== */
+function resize(){
+  var r=scene.getBoundingClientRect();
+  var w=r.width||400,h=r.height||H;
+  /* viewBox 高度跟随视口比例，保证内容填满而非等比缩小留白。
+     若固定 760 配 xMidYMid meet，窄高屏会等比缩小并垂直居中，
+     底部岩点筐就会被推到屏幕外。
+     上限 900：再高会把岩点筐压得过小（点击目标 <44px 就不好点了）。 */
+  var VBH=clamp(H*(h/w),H,900);
+  var VBW=clamp(W*(w/h),W,1150);
+  scene.setAttribute("viewBox","0 0 "+VBW.toFixed(0)+" "+VBH.toFixed(0));
+  /* 用 meet 保住全部内容（不裁左右）；viewBox 变高后由 extendStage 补背景 */
+  scene.setAttribute("preserveAspectRatio","xMidYMid meet");
+  root.setAttribute("transform","translate("+((VBW-W)/2).toFixed(1)+",0)");
+  var cv=$("fx"),dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.max(1,Math.floor(w*dpr));cv.height=Math.max(1,Math.floor(h*dpr));
+  FX.ctx=cv.getContext("2d");
+  FX.ctx.setTransform(dpr,0,0,dpr,0,0);
+  FX.w=w;FX.h=h;
+  extendStage(VBH);
+  VIEW_H=VBH;
+  /* 托盘挂在 camG 里（世界空间），纵向由 followTray 跟随女生，
+     resize 只需在托盘为空时建一次，不要动它的 transform。 */
+  if(trayG&&!trayG.firstChild)buildTray();
+  var to=(S.act===CLIMB||S.act===FAIL||S.act===SHOWBOW||(S.act>=SEW&&S.act<=PARADE))?1:OV_K;
+  cam.tx=200-S.girlX*to;
+}
+
+/* viewBox 变高时延伸夜空与地面，避免下方露出空白 */
+function extendStage(VBH){
+  if(!skyBg)return;
+  /* viewBox 变高时把夜空与地面一起拉长，避免下方露出 body 的纯黑底。
+     额外多补 260：镜头会把人物放在 0.62 屏高处，下方需要足够多的地面。 */
+  var extra=Math.max(0,VBH-H)+260;
+  skyBg.setAttribute("height",(GROUND+760+extra).toFixed(0));
+  if(groundFill)groundFill.setAttribute("height",(420+extra).toFixed(0));
+  if(groundLip){
+    var bottom=(GROUND+420+extra).toFixed(0);
+    groundLip.setAttribute("d","M-700,"+GROUND+
+      " q150,-14 300,0 q150,12 300,-2 q150,-14 300,2 q150,12 300,-4 q150,-14 300,2"+
+      " L1000,"+bottom+" L-700,"+bottom+" Z");
+  }
+}
+window.addEventListener("resize",resize);
+window.addEventListener("orientationchange",function(){setTimeout(resize,120);});
+if(window.ResizeObserver)new ResizeObserver(function(){resize();}).observe($("stage"));
+
+function svgPt(e){
+  var p=scene.createSVGPoint();p.x=e.clientX;p.y=e.clientY;
+  var m=scene.getScreenCTM();
+  return m?p.matrixTransform(m.inverse()):{x:0,y:0};
+}
+
+/* ==========================================================================
+   UI
+   ========================================================================== */
+function setTip(t,dur){
+  var e=$("tip");e.textContent=t;e.classList.add("on");
+  clearTimeout(e._t);e._t=setTimeout(function(){e.classList.remove("on");},dur||2200);
+}
+function setTapHint(t,on){
+  var e=$("tapHint");e.textContent=t;e.classList.toggle("on",!!on);
+  /* 音符幕的谱面在画面上部：提示移到底部，避免压住五线谱 */
+  e.classList.toggle("low",S.act===NOTES);
+}
+function climbWorldPt(e){
+  var p=svgPt(e);
+  var rt=parseFloat((root.getAttribute("transform").match(/translate\(([-\d.]+)/)||[0,0])[1])||0;
+  return {x:(p.x-rt-cam.x)/cam.k,y:(p.y-cam.y)/cam.k};
+}
+function tapClimb(e){
+  if(S.reached){doWin();return;}
+  if(S.climbTarget>=0||S.climbGoal)return;
+  var w=climbWorldPt(e);
+  if(S.stepDone>=SLOTS.length){
+    var gx=w.x-GOAL.x,gy=w.y-GOAL.y;
+    if(gx*gx+gy*gy<92*92)beginGoalMove();
+    else setTip("点红色终点，完成最后一步",1400);
+    return;
+  }
+  var idx=S.stepDone,sl=SLOTS[idx];
+  var dx=w.x-sl.x,dy=w.y-sl.y;
+  if(dx*dx+dy*dy<78*78){beginClimbMove(idx);return;}
+  /* 不允许越过当前岩点直接抓更高处，也不把空白处当成自动上升按钮。 */
+  SFX.wrong();
+  setTip("先抓上方发光的「"+TYPES[sl.t].name+"」岩点 · 一步一步向上",1600);
+}
+
+/* ==========================================================================
+   交互
+   ========================================================================== */
+scene.addEventListener("pointerdown",function(e){
+  ac();
+  if(S.act===IDLE){ startLamp(); return; }
+  if(S.act===LAMP){
+    /* 跑动/苏醒阶段不接受输入；等待拍灯阶段：点灯区域才拍，点别处也算拍（手机易点） */
+    if(S.lampPhase==="wait")tapLamp();
+    return;
+  }
+  if(S.act===DANCE){ setTapHint("",false); startCatIn(); return; }
+  if(S.act===DUET){ setTapHint("",false); startPunch(); return; }
+  if(S.act===STORY){
+    if(S.phase==="place"){
+      /* 两步安装：先点脚边岩点选中，再点墙上凹槽配对。 */
+      var node=trayNodeAt(e);
+      if(node){tapTrayHold(node);return;}
+      var di=dentAt(e);
+      if(di>=0){tapDent(di);return;}
+      /* 点空白处：取消当前选中 */
+      if(S.selType){clearSelection();setTip("点脚边岩点 · 再点对应凹槽",1600);}
+      return;
+    }
+    if(S.phase!=="story")return;
+    var p=svgPt(e);
+    if(S.step===STEP_WAND)tapWand();
+    else if(S.step===STEP_SEW)tapSew();
+    else if(S.step===STEP_SHOOT)tapShoot(p.x,p.y);
+    else if(S.step===STEP_BOWTIE)tapBow(e.clientX,e.clientY);
+    else if(S.step===STEP_RED)tapRed(p.x,p.y);
+    return;
+  }
+  if(S.act===CLIMB){tapClimb(e);return;}
+  if(S.act===SEW){tapSewFinal(e);return;}
+  if(S.act===SHOWBOW){return;}
+  if(S.act===WEAR){tapBow(e.clientX,e.clientY);return;}
+  if(S.act===NOTES){tapNotes(e);return;}
+  if(S.act===WISH){tapWishScene(e);return;}
+  if(S.act===REVISIT){
+    if(S.revisitPhase==="sealed")openRevisitLetter();   /* 点场景里的信也能打开 */
+    return;
+  }
+},{passive:true});
+
+window.addEventListener("pointermove",function(e){
+  if((S.act===STORY&&S.phase==="story"&&S.step===STEP_BOWTIE&&S.dragBow)||
+     (S.act===WEAR&&S.dragBow)){
+    moveBow(e.clientX,e.clientY);
+  }
+},{passive:true});
+
+window.addEventListener("pointerup",function(e){
+  S.gripping=false;S.gripT=0;
+  if((S.act===STORY&&S.phase==="story"&&S.step===STEP_BOWTIE)||S.act===WEAR){
+    releaseBow(e.clientX,e.clientY);
+  }
+},{passive:true});
+window.addEventListener("pointercancel",function(){
+  S.gripping=false;S.gripT=0;
+  /* 取消时把领结弹回女生手边（拖拽已改为点击装岩点，无托盘拖拽要回滚） */
+  if((S.act===STORY||S.act===WEAR)&&S.dragBow){S.dragBow=false;S.bowHeld=true;}
+},{passive:true});
+
+$("retryBtn").onclick=function(){
+  $("failModal").classList.remove("on");
+  resetRound();
+};
+/* 二次探索从拍灯重开：把凹槽彻底恢复成「未砸、未装岩点」，
+   好让猫重新砸一遍、玩家重新装一遍（与 resetRound 的 retry 场景不同，
+   这里必须 shown=false，revealDent 才会重新播放砸开动画）。 */
+function resetDentsFresh(){
+  SLOTS.forEach(function(s){s._got=false;});
+  if(holdG)holdG.innerHTML="";
+  dents.forEach(function(d){
+    d.filled=false;d.shown=false;
+    d.g.setAttribute("opacity","0");
+    d.g.setAttribute("transform","translate("+d.x+","+d.y+")");
+    if(d.fillNode&&d.fillNode.parentNode)d.fillNode.parentNode.removeChild(d.fillNode);
+    d.fillNode=null;
+    d.hint.style.transition="none";
+    d.hint.setAttribute("opacity","0");
+    d.hs.setAttribute("stroke","#FFC24B");
+  });
+  S.placed=0;
+}
+function resetRound(){
+  SLOTS.forEach(function(s){s._got=false;});
+  holdG.innerHTML="";
+  dents.forEach(function(d){
+    d.filled=false;d.shown=true;
+    d.g.setAttribute("opacity","1");
+    d.g.setAttribute("transform","translate("+d.x+","+d.y+")");
+    if(d.fillNode&&d.fillNode.parentNode)d.fillNode.parentNode.removeChild(d.fillNode);
+    d.hint.style.transition="none";
+    d.hint.setAttribute("opacity",".55");
+    d.hs.setAttribute("stroke","#FFC24B");
+  });
+  S.placed=0;
+  trayG.removeAttribute("class");
+  buildTray();
+  $("timerRow").classList.remove("on");
+  /* 重试回到「猫已离场、等待玩家装第 1 个岩点」的阶段。 */
+  clearProps();clearAfter();
+  S.catVisible=false;S.catFade=1;S.catX=560;
+  S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+  S.pose="idle";S.armTarget=null;
+  S.bowWorn=false;S.paradeDone=false;S.notesPlaced=0;stopBirthday();
+  if(C.bow)C.bow.setAttribute("display","none");
+  cam.tk=OV_K;cam.tx=200-S.girlX*OV_K;cam.ty=VIEW_H*0.94-GROUND*OV_K;
+  startStory();
+  setTip("再来一次！先装第一个岩点",1800);
+}
+$("replayBtn").onclick=function(){
+  /* 需求5：开心循环 → 小猫送来上次的愿望信，查看/续愿后睡觉，再继续探索 */
+  startRevisit();
+};
+$("sndBtn").onclick=function(e){
+  e.stopPropagation();muted=!muted;
+  $("sndBtn").style.opacity=muted?".38":"1";
+  if(!muted)ac();
+};
+
+/* ---- 许愿面板事件 ---- */
+if($("wishTabType"))$("wishTabType").onclick=function(){setWishMode("text");SFX.press&&SFX.press();};
+if($("wishTabAudio"))$("wishTabAudio").onclick=function(){setWishMode("audio");SFX.press&&SFX.press();};
+if($("wishText"))$("wishText").oninput=updateWishCount;
+if($("recBtn"))$("recBtn").onclick=function(){toggleRec();};
+if($("wishSend"))$("wishSend").onclick=function(){
+  ac();SFX.press&&SFX.press();
+  if(S.wishType==="audio"&&S.wishData){commitWish("audio","",S.wishData);}
+  else{
+    var t=$("wishText")?$("wishText").value.trim():"";
+    commitWish("text",t,"");
+  }
+};
+if($("wishSkip"))$("wishSkip").onclick=function(){
+  ac();SFX.press&&SFX.press();commitWish("text","","");
+};
+if($("revisitKeep"))$("revisitKeep").onclick=function(){ac();SFX.press&&SFX.press();closeRevisit(true);};
+if($("revisitNew"))$("revisitNew").onclick=function(){ac();SFX.press&&SFX.press();closeRevisit(false);};
+if($("envOpenBtn"))$("envOpenBtn").onclick=function(){ac();SFX.press&&SFX.press();openRevisitLetter();};
+if($("envNewBtn"))$("envNewBtn").onclick=function(){ac();SFX.press&&SFX.press();closeRevisit(false);};
+/* 面板内部阻止冒泡，避免触发场景点击 */
+["wishPanel","revisitPanel","envClosedPanel"].forEach(function(id){
+  var p=$(id);
+  if(p)p.addEventListener("pointerdown",function(e){e.stopPropagation();});
+});
+
+/* ==========================================================================
+   角色姿态
+   ========================================================================== */
+var t0=performance.now();
+function now(){return (performance.now()-t0)/1000;}
+
+/* 让前手臂指向某个世界坐标（肩关节旋转）
+   手臂画法：肩 (13,-101) → 拳 (18,-62)，默认方向 atan2(39,5)≈82.7°（近垂直向下）
+   目标方向 base 减掉默认方向即为所需旋转量 */
+var ARM_REST_DEG=82.7;
+function pointArm(target){
+  var sx=13, sy=-100;
+  var dx=target.x-S.girlX, dy=target.y-(S.girlY+sy);
+  var base=Math.atan2(dy,dx)*180/Math.PI;
+  var rel=base-ARM_REST_DEG;
+  return clamp(rel,-165,25);
+}
+/* 左臂：肩关节在 (-13,-100)，指向下方支点（真实攀岩的"副手扶点"） */
+function pointArmL(target){
+  var sy=-100;
+  var dx=target.x-S.girlX, dy=target.y-(S.girlY+sy);
+  var base=Math.atan2(dy,dx)*180/Math.PI;
+  /* 左臂默认朝下偏左，镜像右臂的 rest 角 */
+  var rel=base-(180-ARM_REST_DEG);
+  return clamp(rel,-25,165);
+}
+
+/* 攀爬时：找上方最近、且够得到的岩点，让手真的扶上去。
+   手臂画长只有约 40 单位，够不到上百单位的岩点，
+   所以除了旋转方向，还要按距离做纵向拉伸，视觉上才像"伸长去够"。 */
+function nearestHoldTarget(){
+  var best=null,bd=1e9;
+  for(var i=0;i<SLOTS.length;i++){
+    var sl=SLOTS[i];
+    var dy=sl.y-S.girlY;          /* 世界 y 越小越高，故上方为负 */
+    if(dy>26)continue;            /* 已在下方或同高 */
+    if(dy<-190)continue;          /* 太高够不到 */
+    var dx=sl.x-S.girlX;
+    var d=Math.abs(dy)*1.15+Math.abs(dx);   /* 纵向权重更高，优先够高处 */
+    if(d<bd){bd=d;best=sl;}
+  }
+  if(!best)best=GOAL;
+  return best;
+}
+/* 攀岩时副手扶的"下方支点"：已抓到、且在女生下方的岩点里挑最近的一个。
+   这样主手抓上方、副手扶下方，形成三点固定的真实攀岩姿态。 */
+function nearestSupport(){
+  var done=S.stepDone-1;
+  if(done>=0&&done<SLOTS.length){
+    var sl=SLOTS[done];
+    if(sl.y>S.girlY+20)return sl;   /* 世界 y 更大 = 更靠下 */
+  }
+  /* 还没抓到第一个时，用稍低于当前站位的虚拟支点让手臂自然下扶 */
+  return {x:S.girlX-26,y:S.girlY+54};
+}
+/* 手臂纵向拉伸倍率：够近时 1，越远拉得越长（上限 1.9，勿过头） */
+function armStretch(target){
+  var sy=-100;
+  var dy=Math.abs(target.y-(S.girlY+sy)), dx=Math.abs(target.x-S.girlX);
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  return clamp(1+(dist-46)/190,1,1.9);
+}
+
+function updateGirl(dt){
+  S.poseT+=dt;
+  /* girlRun 让女孩独立跑动（砸墙后段进场），不把 S.pose 改成 run —— 否则猫也会跟着跑 */
+  var t=now(), pose=(S.girlRun?"run":S.pose);
+  var bob=1+Math.sin(t*2.4)*0.015;
+  var dy=0,rot=0;
+
+  /* 舞动：全身上下弹 + 手臂交替 + 头发甩动 */
+  if(pose==="dance"){
+    var beat=t*Math.PI*2*2.28;          /* ≈ 每拍 0.44s */
+    dy=-Math.abs(Math.sin(beat))*7;
+    rot=Math.sin(beat)*4.5;
+    var a1=20+Math.sin(beat)*44, a2=14-Math.sin(beat)*38;
+    G.armR.setAttribute("transform","rotate("+a1.toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+a2.toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate("+(-4+Math.sin(beat)*16).toFixed(1)+" -6 -58)");
+    G.legR.setAttribute("transform","rotate("+(4-Math.sin(beat)*16).toFixed(1)+" 6 -58)");
+    /* 头部已由 buildGirl 定位到 (0,-124)，这里只绕头心做自身旋转 */
+    G.headTilt.setAttribute("transform","translate(0,"+(-Math.abs(Math.sin(beat))*2).toFixed(2)+") rotate("+
+      (Math.sin(beat)*5).toFixed(1)+")");
+    G.hairBack.setAttribute("transform","rotate("+(-Math.sin(beat)*7).toFixed(1)+" 0 -100)");
+  }
+  else if(pose==="climb"){
+    /* 真实攀岩动作：以 3.1 秒为一个"伸手→抓握→蹬腿收身"循环，
+       身体贴近墙面、随发力左右摆重心，手脚分置抓不同支点。 */
+    var cyc=(t*0.32)%1;                    /* 0..1 的攀爬循环 */
+    var reach=Math.sin(cyc*Math.PI*2-0.6); /* 伸手(+)/收身(-) */
+    var w=Math.sin(t*2.6);                 /* 重心左右摆（慢） */
+    var leg=Math.sin(t*2.6+Math.PI);       /* 双腿反相蹬踏 */
+    dy=-Math.abs(Math.sin(t*5.2))*2.2;     /* 发力时的细碎上下颠动 */
+    rot=w*3.4;                             /* 身体贴墙侧倾 */
+    var grip=S.armTarget||nearestHoldTarget();
+    if(grip){
+      /* 主手抓上方岩点：伸出时手臂拉长，抓住后收回 */
+      var st=clamp(armStretch(grip)+reach*0.18,1,2.1);
+      G.armR.setAttribute("transform","rotate("+pointArm(grip).toFixed(1)+" 13 -100) scale(1,"+st.toFixed(2)+")");
+      /* 副手扶住刚才抓住的下方岩点——三点固定，更像真实攀岩 */
+      var below=nearestSupport();
+      if(below){
+        G.armL.setAttribute("transform","rotate("+pointArmL(below).toFixed(1)+
+          " -13 -100) scale(1,"+clamp(armStretch(below),1,1.6).toFixed(2)+")");
+      }else{
+        G.armL.setAttribute("transform","rotate("+(146+reach*16).toFixed(1)+" -13 -100) scale(1,1.5)");
+      }
+    }else{
+      G.armR.setAttribute("transform","rotate("+(150+reach*16).toFixed(1)+" 13 -100)");
+      G.armL.setAttribute("transform","rotate("+(138-reach*14).toFixed(1)+" -13 -100)");
+    }
+    /* 蹬腿：一腿屈膝踩实下方支点、一腿伸展够下一脚，反相交替 */
+    G.legL.setAttribute("transform","rotate("+(30+leg*13).toFixed(1)+" -6 -58)");
+    G.legR.setAttribute("transform","rotate("+(-8-leg*11).toFixed(1)+" 6 -58)");
+    G.headTilt.setAttribute("transform","rotate("+(w*4-2).toFixed(1)+")");
+    G.hairBack.setAttribute("transform","rotate("+(-8-w*6).toFixed(1)+" 0 -100)");
+  }
+  else if(pose==="slip"){
+    var j=Math.sin(t*24)*6;
+    dy=-j;
+    G.armR.setAttribute("transform","rotate("+(100+j*3).toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(90-j*3).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate("+(26+j).toFixed(1)+" -6 -58)");
+    G.legR.setAttribute("transform","rotate("+(-24+j).toFixed(1)+" 6 -58)");
+    G.headTilt.setAttribute("transform","rotate("+j.toFixed(1)+")");
+    G.hairBack.setAttribute("transform","rotate("+(10+j).toFixed(1)+" 0 -100)");
+  }
+  else if(pose==="punchGirl"){
+    /* 手臂角度由序列控制，这里只补身体前倾 */
+    rot=-5;dy=-4;
+    G.legL.setAttribute("transform","rotate(-16 -6 -58)");
+    G.legR.setAttribute("transform","rotate(14 6 -58)");
+    G.headTilt.setAttribute("transform","rotate(-4)");
+  }
+  else if(pose==="run"){
+    /* 跟着猫跑：身体前倾，双臂双腿反相摆动，步频偏快 */
+    var rp=t*13;
+    rot=-11;dy=-Math.abs(Math.sin(rp))*7;
+    G.armR.setAttribute("transform","rotate("+(-24+Math.sin(rp)*30).toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(24-Math.sin(rp)*30).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate("+(-6+Math.sin(rp)*24).toFixed(1)+" -6 -58)");
+    G.legR.setAttribute("transform","rotate("+(6-Math.sin(rp)*24).toFixed(1)+" 6 -58)");
+    G.headTilt.setAttribute("transform","rotate(-5)");
+    G.hairBack.setAttribute("transform","rotate(12 0 -100)");
+  }
+  else if(pose==="sew"){
+    /* 坐在缝纫机前：身体前倾低头看针，双手在台面推布，脚踏板上下 */
+    var sew=S.sewStage===3, push=sew?Math.sin(t*16)*9:Math.sin(t*3)*3;
+    rot=6;dy=-2;
+    G.armR.setAttribute("transform","rotate("+(46+push).toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(38-push*0.6).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate("+(sew?-6-Math.sin(t*16)*10:-6).toFixed(1)+" -6 -58)");
+    G.legR.setAttribute("transform","rotate("+(sew?10+Math.sin(t*16)*10:8).toFixed(1)+" 6 -58)");
+    G.headTilt.setAttribute("transform","rotate(9)");
+    G.hairBack.setAttribute("transform","rotate(-4 0 -100)");
+  }
+  else if(pose==="handoff"){
+    /* 递信给小猫：右臂朝左前方平伸（猫在女孩左侧）、身体微前倾、低头看信。
+       右臂默认朝下 14°，向左平伸约 -78°；左手在胸前托着信尾。 */
+    rot=-6;dy=-2;
+    G.armR.setAttribute("transform","rotate(-78 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(46+Math.sin(t*2)*3).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate(-5 -6 -58)");
+    G.legR.setAttribute("transform","rotate(5 6 -58)");
+    G.headTilt.setAttribute("transform","rotate(7)");
+    G.hairBack.setAttribute("transform","rotate(-5 0 -100)");
+  }
+  else if(S.armTarget){
+    /* 装岩点时伸手够向目标 */
+    var ang=pointArm(S.armTarget);
+    G.armR.setAttribute("transform","rotate("+ang.toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(16+Math.sin(t*3)*5).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate(-6 -6 -58)");
+    G.legR.setAttribute("transform","rotate(7 6 -58)");
+    G.headTilt.setAttribute("transform","rotate(-3)");
+    G.hairBack.setAttribute("transform","rotate(-4 0 -100)");
+  }
+  else{
+    /* 站立 / 行走：呼吸 + 偶尔眨眼 */
+    G.armR.setAttribute("transform","rotate("+(14+Math.sin(t*2.4)*4).toFixed(1)+" 13 -100)");
+    G.armL.setAttribute("transform","rotate("+(20+Math.sin(t*2.4+1)*4).toFixed(1)+" -13 -100)");
+    G.legL.setAttribute("transform","rotate(-4 -6 -58)");
+    G.legR.setAttribute("transform","rotate(4 6 -58)");
+    /* 眨眼：只在峰值瞬间快速压扁一下（sin^24 脉冲约 0.2s），
+       旧写法 |sin(t*0.85)| 让头部一半时间都处于压扁状态，看着像头被踩瘪 */
+    var blink=Math.pow(Math.max(0,Math.sin(t*0.85)),24);
+    var hd=1-0.88*blink;
+    G.headTilt.setAttribute("transform","translate(0,"+(blink*4.4).toFixed(2)+") scale(1,"+hd.toFixed(3)+")");
+    G.hairBack.setAttribute("transform","rotate("+(Math.sin(t*2.2)*3).toFixed(1)+" 0 -100)");
+  }
+  girlG.setAttribute("transform","translate("+S.girlX.toFixed(2)+","+
+    (S.girlY+dy).toFixed(2)+") scale("+bob.toFixed(3)+",1) rotate("+rot.toFixed(1)+")");
+}
+
+function updateCat(dt){
+  if(!S.catVisible){catG.setAttribute("display","none");return;}
+  catG.removeAttribute("display");
+  /* 淡入淡出：猫砸完墙后淡出消失，探出来时淡入 */
+  catG.setAttribute("opacity",clamp(S.catFade,0,1).toFixed(3));
+  var t=now(),pose=S.pose;
+  var bob=1+Math.sin(t*2.6)*0.02;
+  var dy=0,rot=0;
+  C.tail.setAttribute("transform","rotate("+(Math.sin(t*2.6)*17).toFixed(1)+" 19 -48)");
+
+  /* 灯幕睡觉：专门的蜷缩睡猫做轻微呼吸起伏；站立猫此时是隐藏的 */
+  if(S.act===LAMP&&(S.lampPhase==="wait"||S.lampPhase==="wake")){
+    if(sleepG){
+      var br=1+Math.sin(t*1.8)*0.025;
+      sleepG.setAttribute("transform","translate("+LAMP_CAT_SLEEP_X+","+GROUND+") scale(1,"+br.toFixed(3)+")");
+    }
+    return;
+  }
+  if(pose==="dance"){
+    var beat=t*Math.PI*2*2.28;
+    dy=-Math.abs(Math.sin(beat+0.5))*6;
+    rot=Math.sin(beat+0.5)*5;
+    C.armF.setAttribute("transform","rotate("+(22+Math.sin(beat+1)*40).toFixed(1)+" 13 -56)");
+    C.armB.setAttribute("transform","rotate("+(16-Math.sin(beat+1)*34).toFixed(1)+" -11 -56)");
+    /* 头部只做自身旋转（绕头心 0,0），不再重复位移 */
+    C.headTilt.setAttribute("transform","rotate("+(Math.sin(beat+0.5)*7).toFixed(1)+")");
+  }
+  else if(pose==="punchCat"){
+    rot=-6;dy=-5;
+    C.headTilt.setAttribute("transform","rotate(-5)");
+  }
+  else if(pose==="run"){
+    /* 跑动：身体前倾，四肢交替摆动 */
+    var rp=t*13;
+    rot=-13;dy=-Math.abs(Math.sin(rp))*7;
+    C.armF.setAttribute("transform","rotate("+(-26+Math.sin(rp)*30).toFixed(1)+" 13 -56)");
+    C.armB.setAttribute("transform","rotate("+(30-Math.sin(rp)*30).toFixed(1)+" -11 -56)");
+    C.headTilt.setAttribute("transform","rotate(-6)");
+    C.tail.setAttribute("transform","rotate("+(20+Math.sin(rp)*22).toFixed(1)+" 19 -48)");
+  }
+  else{
+    C.armF.setAttribute("transform","rotate("+(14+Math.sin(t*2.6)*4).toFixed(1)+" 13 -56)");
+    C.armB.setAttribute("transform","rotate("+(18+Math.sin(t*2.6+1)*4).toFixed(1)+" -11 -56)");
+    /* 与 index-v5 原版一致：头部 |sin| 一鼓一鼓伸缩（周期约 2.85 秒），
+       压缩量同步带动头顶轻轻点动（位移 ×4），无下限。 */
+    var hd=Math.abs(Math.sin(t*1.1));
+    C.headTilt.setAttribute("transform","translate(0,"+((1-hd)*4).toFixed(2)+") scale(1,"+hd.toFixed(3)+")");
+  }
+  /* 旋转中心取猫的身体中心 (0,-48)，否则绕原点转会甩飞头部。
+     跑动阶段保留一点纵向压缩（bsc<1），让从"蜷缩睡觉"起身后的身形仍紧凑，
+     不会因 scale 突然从 0.72 弹回 1 而出现头身拉开；退出灯幕后自动恢复为 1。 */
+  var bsc=(S.act===LAMP&&pose==="run")?0.82:1;
+  catG.setAttribute("transform","translate("+S.catX.toFixed(2)+","+
+    (S.catY+dy).toFixed(2)+") scale("+S.catFace+","+bob.toFixed(3)+")");
+  C.body.setAttribute("transform","translate(0,"+(-dy).toFixed(2)+") rotate("+rot.toFixed(1)+" 0 -48) scale(1,"+bsc.toFixed(2)+")");
+}
+
+/* ==========================================================================
+   主循环
+   ========================================================================== */
+/* 近景：以「一人一猫的中点」为焦点，两人都留在画面内 */
+function closeFocusX(){
+  if(S.act===DANCE||S.act===IDLE)return S.girlX;
+  return (S.girlX+S.catX)/2;
+}
+function step(dt,ts){
+  var climbing=(S.act===CLIMB||S.act===FAIL);
+  if(climbing){
+    /* 相机横向只跟一部分：中心锚在墙中线，叠加女孩相对中线的位移的一部分。
+       这样女孩在不同岩点间左右腾挪时，屏幕上会真的左右移动，
+       而不是被相机完全抵消、永远钉在画面中央。 */
+    var focusX=200+(S.girlX-200)*CLIMB_FOLLOW;
+    cam.tk=1;cam.tx=200-focusX;
+    /* 第一段攀爬时女生离画面底部的距离与安装幕保持一致（地面锚点约 0.94 屏高），
+       不再空出一大片下半屏；越接近顶部越平滑过渡到原来的 470 锚点，
+       否则终点会被顶到画面最下缘。 */
+    var lowY=SLOTS[0].y, topY=WIN_Y;
+    var climbP=clamp((lowY-S.girlY)/(lowY-topY),0,1);
+    var anchor=lerp(VIEW_H*0.94,470,easeInOut(climbP));
+    cam.ty=clamp(anchor-S.girlY,-(GROUND-WIN_Y+40),VIEW_H*0.94);
+  }else if(S.act===WIN){
+    /* 结局镜头已固定，保持猫推蛋糕进场的画面 */
+  }else if(S.act===SHOWBOW){
+    /* 领结特写：拉近到猫脖子，领结占据画面中心 */
+    aimAfter(2.05,S.catX,0.5,S.catY-40);
+  }else if(S.act===SEW||S.act===WEAR||S.act===PARADE||S.act===WISH){
+    aimAfter(1.05,GOAL.x+70,0.72,GOAL.y);
+  }else if(S.act===REVISIT){
+    /* 回访在灯幕背景里：镜头与开场拍灯一致，灯与猫都在画面中下部 */
+    cam.tk=INTRO_K;cam.tx=200-LAMP_X*INTRO_K;cam.ty=VIEW_H*0.84-GROUND*INTRO_K;
+  }else if(S.act===NOTES){
+    aimAfter(0.9,GOAL.x+12,0.6,GOAL.y);
+  }else if(S.act===STORY){
+    if(S.phase==="place"||S.phase==="transition"){
+      /* 安装全程：整面墙全景，女生站在地面操作脚边岩点筐。 */
+      cam.tk=OV_K;
+      cam.tx=200-GIRL_HOME.x*OV_K;
+      cam.ty=VIEW_H*0.94-GROUND*OV_K;
+    }else{
+      /* 攀爬任务：女生已经到达岩点，镜头才升到对应高度。 */
+      cam.tk=STORY_K;
+      cam.tx=200-(S.girlX+100)*STORY_K;
+      cam.ty=VIEW_H*0.66-S.girlY*STORY_K;
+    }
+  }else if(S.act===LAMP){
+    /* 黑底开场镜头：灯居中、放大到足够看清睡猫；灯座落在画面约 84% 高处。
+       猫跑开、女孩追都在画面内/外自然发生，镜头全程锁定这盏灯。 */
+    cam.tk=INTRO_K;
+    cam.ty=VIEW_H*0.84-GROUND*INTRO_K;
+    cam.tx=200-LAMP_X*INTRO_K;
+  }else if(S.act===DANCE||S.act===CATIN||S.act===DUET){
+    /* 近景：跳舞/齐舞要看清角色。
+       同样按 VIEW_H 比例锚定，别用写死的 CLOSE_Y（viewBox 一变高就出画）。 */
+    cam.tk=CLOSE_K;
+    cam.ty=VIEW_H*0.70-GROUND*CLOSE_K;
+    cam.tx=200-closeFocusX()*CLOSE_K;
+  }else if(S.act===PUNCH){
+    /* 出拳时拉远到全景，对准墙中心：猫砸墙、女孩后段跑进来都在画内。
+       不再跟 girlX（她开场远在场外，会带偏镜头）。
+       锚点按 VIEW_H 比例：viewBox 高度随视口变化，写死 OV_Y 会让
+       地面落到画面外。0.94 屏高 → 地面贴近下缘、下方留白更少，墙顶凹陷仍完整可见。 */
+    cam.tk=OV_K;
+    cam.ty=VIEW_H*0.94-GROUND*OV_K;
+    cam.tx=200-200*OV_K;
+  }else{
+    cam.tk=OV_K;
+    cam.ty=VIEW_H*0.94-GROUND*OV_K;
+    cam.tx=200-S.girlX*OV_K;
+  }
+  var sp=1-Math.pow(0.0016,dt);
+  cam.k=lerp(cam.k,cam.tk,sp);cam.x=lerp(cam.x,cam.tx,sp);cam.y=lerp(cam.y,cam.ty,sp);
+
+  var ox=0,oy=0;
+  if(shakeT>0){shakeT-=dt;ox=(Math.random()-.5)*shakeA*2;oy=(Math.random()-.5)*shakeA*2;shakeA*=0.9;}
+  camG.setAttribute("transform","translate("+(cam.x+ox).toFixed(2)+","+(cam.y+oy).toFixed(2)+") scale("+cam.k.toFixed(4)+")");
+
+  if(S.act===LAMP)updateLamp(dt);
+  if(S.act===IDLE||S.act===DANCE||S.act===CATIN||S.act===DUET||S.act===PUNCH)updateStory(dt);
+  if(S.act===STORY)updateStoryStage(dt);
+  /* 岩点筐跟着女生：她往上一个岩点，整排岩点跟着上去 */
+  if(S.act===STORY)followTray();
+  if(S.act===CLIMB)updateClimb(dt);
+  if(S.act===SEW)updateSewFinal(dt);
+  if(S.act===WEAR){updateWear(dt);if(!S.bowPlaced)updateBow(dt);}
+  if(S.act===SHOWBOW)updateShowBow(dt);
+  if(S.act===PARADE)updateParade(dt);
+  if(S.act===WISH){
+    if(S.wishPhase==="give")updateWishGive(dt);
+    else if(S.wishPhase==="back")updateWishBack(dt);
+  }
+  if(S.act===REVISIT)updateRevisit(dt);
+
+  updateGirl(dt);
+  updateCat(dt);
+
+  if(S.act===CLIMB){
+    var halo=$("goalHalo");
+    if(halo){
+      var b=1+Math.sin(ts/240)*0.1;
+      halo.setAttribute("rx",(82*b).toFixed(1));
+      halo.setAttribute("ry",(44*b).toFixed(1));
+    }
+    var fc=$("flagCloth");
+    if(fc)fc.setAttribute("transform","skewX("+(Math.sin(ts/300)*4).toFixed(2)+")");
+  }
+  fxLoop(dt);
+}
+
+var last=0;
+function loop(ts){
+  var dt=Math.min(.05,(ts-last)/1000||0);last=ts;
+  step(dt,ts);
+  requestAnimationFrame(loop);
+}
+
+/* ==========================================================================
+   启动
+   ========================================================================== */
+function start(){
+  build();
+  resize();
+  S.girlX=GIRL_HOME.x;S.girlY=GIRL_HOME.y;
+  S.catX=560;S.catY=GROUND;
+  /* 开始页面 = 黑底灯幕：相机初始就锁定开场镜头，第一帧不闪出墙 */
+  cam.tk=INTRO_K;cam.ty=VIEW_H*0.84-GROUND*INTRO_K;cam.tx=200-LAMP_X*INTRO_K;
+  cam.k=cam.tk;cam.x=cam.tx;cam.y=cam.ty;
+  startLamp();
+  requestAnimationFrame(loop);
+}
+var st=document.createElement("style");
+st.textContent="@keyframes flick{from{transform:scaleY(.85);opacity:.85}to{transform:scaleY(1.14);opacity:1}}"+
+  "@keyframes bobY{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}";
+document.head.appendChild(st);
+
+/* 调试钩子：把内部状态挂到 window，方便控制台调试与自动化验证 */
+window.__cat={
+  get state(){return S;}, get cam(){return cam;},
+  SLOTS:SLOTS, TYPES:TYPES, WIN_Y:WIN_Y, GOAL:GOAL,
+  ACT:{IDLE:IDLE,DANCE:DANCE,CATIN:CATIN,DUET:DUET,PUNCH:PUNCH,STORY:STORY,CLIMB:CLIMB,WIN:WIN,FAIL:FAIL,
+       SEW:SEW,WEAR:WEAR,NOTES:NOTES,PARADE:PARADE,LAMP:LAMP,SHOWBOW:SHOWBOW,WISH:WISH,REVISIT:REVISIT},
+  wishPhase:function(){return S.wishPhase;},
+  revisitPhase:function(){return S.revisitPhase;},
+  /* 缝纫分步钩子 */
+  sewStage:function(){return S.sewStage;},
+  /* 灯幕测试钩子 */
+  lampLevel:function(){return S.lampLevel;},
+  lampPhase:function(){return S.lampPhase;},
+  tapLamp:function(){tapLamp();},
+  lampPt:function(){
+    var r=scene.getBoundingClientRect();
+    var vb=scene.getAttribute("viewBox").split(/\s+/).map(Number);
+    var s=Math.min(r.width/vb[2],r.height/vb[3]);
+    var ox=(r.width-vb[2]*s)/2,oy=(r.height-vb[3]*s)/2;
+    var rt=(root.getAttribute("transform")||"").match(/translate\(([-\d.]+)/);
+    var rx=rt?parseFloat(rt[1]):0;
+    return {x:(LAMP_X*cam.k+cam.x+rx)*s+ox+r.left,y:(LAMP_LIGHT_Y*cam.k+cam.y)*s+oy+r.top};
+  },
+  BDAY:BDAY, FULL_SONG:FULL_SONG, BLESSINGS:BLESSINGS,
+  noteSlots:function(){return noteSlots;}, notePieces:function(){return notePieces;},
+  blessingCount:function(){return camG?camG.querySelectorAll("g[data-bless]").length:0;},
+  showBlessingAt:function(i,x,y){showBlessing(i,x,y);},
+  STEP:{WAND:STEP_WAND,SEW:STEP_SEW,SHOOT:STEP_SHOOT,BOWTIE:STEP_BOWTIE,RED:STEP_RED},
+  /* 测试辅助：五个岩点已装好，直接跳到攀爬途中「已抓到前 n 个」的状态。
+     n 为已抓数量（0..5）；任务关卡已停用，不再 enterStep。 */
+  gotoStep:function(n){
+    n=clamp(n,0,SLOTS.length);
+    startStory();
+    holdG.innerHTML="";
+    dents.forEach(function(d){d.filled=false;d.fillNode=null;d.hint.style.transition="none";d.hint.setAttribute("opacity",".55");});
+    trayG.innerHTML="";buildTray();S.placed=0;
+    for(var i=0;i<SLOTS.length;i++){
+      var node=trayNodesOf().find(function(x){return x.__type===SLOTS[i].t;});
+      fillSlot(i,node);
+    }
+    S.act=CLIMB;S.phase="climb";S.stepDone=n;S.timeLeft=HOLD_TIME;
+    S.climbElapsed=0;
+    $("tnum").textContent="0.00";
+    $("barIn").style.width="0%";
+    SLOTS.forEach(function(s,i){s._got=i<n;});
+    if(n>0){S.girlY=climbHoldY(n-1);S.girlX=climbHoldX(n-1);}
+    else{S.girlY=GROUND;S.girlX=206;}
+    S.climbTarget=-1;S.climbGoal=false;S.reached=false;
+    cam.tk=1;
+  },
+  /* 测试辅助：跳到第 n 个岩点的安装阶段，前 n 个已装好。 */
+  gotoPlace:function(n){
+    n=clamp(n,0,SLOTS.length-1);
+    startStory();
+    holdG.innerHTML="";
+    dents.forEach(function(d){d.filled=false;d.fillNode=null;d.hint.style.transition="none";d.hint.setAttribute("opacity",".55");});
+    trayG.innerHTML="";buildTray();S.placed=0;
+    for(var i=0;i<n;i++){
+      var node=trayNodesOf().find(function(x){return x.__type===SLOTS[i].t;});
+      fillSlot(i,node);
+    }
+    S.stepDone=0;
+    enterPlacement(n);
+  },
+  /* 测试辅助：安装阶段本就 pickReady=1，保留此接口兼容旧测试。 */
+  ready:function(){ if(S.phase==="place")S.pickReady=1; },
+  /* 测试辅助：直接完成当前攀爬任务（jsdom 无真实布局，坐标不可靠）。
+     完成后从该岩点上方继续攀爬，不重装岩点、不重置倒计时。 */
+  doStep:function(){
+    if(S.act!==STORY||S.phase!=="story")return null;
+    if(S.step===STEP_WAND){S.wandHits=3;completeStep();return 'wand';}
+    if(S.step===STEP_SEW){S.sewProg=1;completeStep();return 'sew';}
+    if(S.step===STEP_SHOOT){
+      S.shootShots=S.shootSlots.length;
+      S.shootScore=S.shootSlots.length;
+      if(STORY_PROPS.score)STORY_PROPS.score.textContent=S.shootScore+" / 3";
+      completeStep();return 'shoot';
+    }
+    if(S.step===STEP_BOWTIE){S.bowPlaced=true;completeStep();return 'bow';}
+    if(S.step===STEP_RED){S.redPress=1;completeStep();return 'red';}
+    return null;
+  },
+  /* 测试辅助：等价于点击第 n 个墙上岩点 / 红色终点。 */
+  grab:function(n){beginClimbMove(n);},
+  grabGoal:function(){beginGoalMove();},
+  /* 测试辅助：第一步——按形状选中岩点（等价于点到脚边那个岩点） */
+  tapHold:function(type){
+    var n=[...trayG.children].find(function(x){return x.__type===type;});
+    if(n)tapTrayHold(n);
+    return !!n;
+  },
+  /* 测试辅助：第二步——点墙上第 idx 个凹槽完成配对 */
+  tapDent:function(idx){ tapDent(idx); },
+  /* 测试辅助：一步到位（选中+配对到形状匹配的凹槽），供旧测试兼容 */
+  installHold:function(type){
+    var n=[...trayG.children].find(function(x){return x.__type===type;});
+    if(!n)return false;
+    tapTrayHold(n);
+    var idx=dents.findIndex(function(d){return !d.filled&&d.t===type;});
+    if(idx>=0)tapDent(idx);
+    return idx>=0;
+  },
+  /* 测试辅助：当前选中岩点 / 凹槽世界坐标（供真实鼠标点击墙上凹槽） */
+  selected:function(){return S.selType;},
+  dentPt:function(idx){
+    var d=dents[idx];if(!d)return null;
+    var r=document.getElementById('scene').getBoundingClientRect();
+    var vb=document.getElementById('scene').getAttribute('viewBox').split(/\s+/).map(Number);
+    var s=Math.min(r.width/vb[2],r.height/vb[3]);
+    var ox=(r.width-vb[2]*s)/2,oy=(r.height-vb[3]*s)/2;
+    var rt=(document.getElementById('root').getAttribute('transform')||'').match(/translate\(([-\d.]+)/);
+    var rx=rt?parseFloat(rt[1]):0;
+    return {x:(d.x*cam.k+cam.x+rx)*s+ox+r.left,y:(d.y*cam.k+cam.y)*s+oy+r.top};
+  },
+  /* 测试辅助：脚边某个岩点的屏幕坐标（供真实鼠标点击） */
+  trayPt:function(type){
+    var n=[...trayG.children].find(function(x){return x.__type===type;});
+    if(!n)return null;
+    var r=n.getBoundingClientRect();
+    return {x:r.left+r.width/2,y:r.top+r.height/2};
+  },
+  /* 登顶后章节测试钩子：道具屏幕坐标（真实鼠标点击用）/ 直接推进（jsdom 用） */
+  afterPt:function(k){
+    var p=null,m;
+    if(k==="fabric")p=fabricPt();
+    else if(k==="machine")p=sewMachinePt();
+    else if(k==="pedal")p=pedalPt();
+    else if(k==="catNeck")p={x:S.catX,y:S.catY-56};
+    else{
+      m=/^notePiece(\d+)$/.exec(k||"");
+      if(m&&notePieces[+m[1]])p={x:notePieces[+m[1]].x,y:notePieces[+m[1]].y};
+      else{
+        m=/^noteSlot(\d+)$/.exec(k||"");
+        if(m&&noteSlots[+m[1]])p={x:noteSlots[+m[1]].x,y:noteSlots[+m[1]].y};
+      }
+    }
+    if(!p)return null;
+    var r=scene.getBoundingClientRect();
+    var vb=scene.getAttribute("viewBox").split(/\s+/).map(Number);
+    var s=Math.min(r.width/vb[2],r.height/vb[3]);
+    var ox=(r.width-vb[2]*s)/2,oy=(r.height-vb[3]*s)/2;
+    var rt=(root.getAttribute("transform")||"").match(/translate\(([-\d.]+)/);
+    var rx=rt?parseFloat(rt[1]):0;
+    return {x:(p.x*cam.k+cam.x+rx)*s+ox+r.left,y:(p.y*cam.k+cam.y)*s+oy+r.top};
+  },
+  afterDo:function(action){
+    if(action==="sew"&&S.act===SEW){finishSew();return true;}
+    if(action==="wear"&&S.act===WEAR){finishWear();return true;}
+    if(action==="notes"&&S.act===NOTES){
+      S.musicPlaying=false;
+      notePieces.forEach(function(n){n.placed=true;n.node.setAttribute("opacity","0");});
+      noteSlots.forEach(function(n){n.filled=true;n.node.setAttribute("opacity","0.22");});
+      S.notesPlaced=BDAY.length;
+      playBirthday();return true;
+    }
+    if(action==="parade"&&S.act===PARADE){S.paradeT=3.6;updateParade(0);return true;}
+    /* 登顶尾声：递信 → 许愿 → 吹烛 → 结算 */
+    if(action==="give"&&S.act===WISH&&S.wishPhase==="give"){S.wishT=2.1;updateWishGive(0);return true;}
+    if(action==="open"&&S.act===WISH&&(S.wishPhase==="offer"||S.wishPhase==="writing")){openWishPanel();return true;}
+    if(action==="wish"&&S.act===WISH){
+      commitWish("text","愿你天天开心", "");return true;
+    }
+    if(action==="wishAudio"&&S.act===WISH){
+      commitWish("audio","","data:audio/webm;base64,TEST");return true;
+    }
+    if(action==="back"&&S.act===WISH&&S.wishPhase==="back"){S.wishT=1.5;updateWishBack(0);return true;}
+    if(action==="blow"&&S.act===WISH&&S.wishPhase==="blow"){
+      var f0=$("wishFlame0"),f1=$("wishFlame1");
+      if(f0)f0.style.display="none";
+      if(f1)f1.style.display="none";
+      blowWishCandle(2);      /* 最后一支触发结算 */
+      return true;
+    }
+    /* 二次进入：猫带信 → 关上的信 → 打开 → 保留/重许 → 睡觉 */
+    if(action==="revisit"){startRevisit();return true;}
+    if(action==="revisitEntered"&&S.act===REVISIT&&S.revisitPhase==="enter"){S.revisitT=2.1;updateRevisit(0);return true;}
+    if(action==="envOpen"&&S.act===REVISIT&&S.revisitPhase==="sealed"){openRevisitLetter();return true;}
+    if(action==="revisitKeep"&&S.act===REVISIT&&S.revisitPhase==="view"){closeRevisit(true);return true;}
+    if(action==="revisitNew"&&S.act===REVISIT&&S.revisitPhase==="view"){closeRevisit(false);return true;}
+    if(action==="envNew"&&S.act===REVISIT&&S.revisitPhase==="sealed"){closeRevisit(false);return true;}
+    if(action==="revisitSleep"&&S.act===REVISIT&&S.revisitPhase==="sleep"){S.revisitT=2.1;updateRevisit(0);return true;}
+    return false;
+  },
+  savedWish:function(){return loadWish();},
+  clearWish:function(){try{localStorage.removeItem(WISH_KEY);}catch(e){}},
+  candlePt:function(i){
+    var p=wishCandleWorld(i),r=scene.getBoundingClientRect();
+    var vb=scene.getAttribute("viewBox").split(/\s+/).map(Number);
+    var s=Math.min(r.width/vb[2],r.height/vb[3]);
+    var ox=(r.width-vb[2]*s)/2,oy=(r.height-vb[3]*s)/2;
+    var rt=(root.getAttribute("transform")||"").match(/translate\(([-\d.]+)/);
+    var rx=rt?parseFloat(rt[1]):0;
+    return {x:(p.x*cam.k+cam.x+rx)*s+ox+r.left,y:(p.y*cam.k+cam.y)*s+oy+r.top};
+  },
+  envelopePt:function(){
+    var p=envelopeTo(),r=scene.getBoundingClientRect();
+    var vb=scene.getAttribute("viewBox").split(/\s+/).map(Number);
+    var s=Math.min(r.width/vb[2],r.height/vb[3]);
+    var ox=(r.width-vb[2]*s)/2,oy=(r.height-vb[3]*s)/2;
+    var rt=(root.getAttribute("transform")||"").match(/translate\(([-\d.]+)/);
+    var rx=rt?parseFloat(rt[1]):0;
+    return {x:(p.x*cam.k+cam.x+rx)*s+ox+r.left,y:(p.y*cam.k+cam.y)*s+oy+r.top};
+  },
+  candleCount:function(){
+    var n=0;for(var i=0;i<3;i++){var f=$("wishFlame"+i);if(f&&f.style.display!=="none")n++;}
+    return n;
+  },
+  dents:function(){return dents;}, tray:function(){return trayNodesOf();},
+  buildHold:buildHold,
+  /* 调试：坐标系换算探针 */
+  probe:function(cx,cy){
+    var p=svgPt({clientX:cx,clientY:cy});
+    return {svgPt:p, clientRootPt:clientRootPt(cx,cy), bowPos:S.bowPos,
+            rootTf:root.getAttribute("transform"), cam:{x:cam.x,y:cam.y,k:cam.k}};
+  },
+  skip:function(){
+    if(S.act===DANCE)startCatIn();
+    else if(S.act===CATIN||S.act===DUET){S.catX=CAT_HOME.x;startPunch();}
+  }
+};
+function trayNodesOf(){return [].slice.call(trayG.children).filter(function(n){return n.__type;});}
+
+if(document.readyState==="complete")start();
+else window.addEventListener("load",start);
+
+})();
+</script>
+</body>
+</html>
